@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local `npm run dev`. Never commit .dev.vars.
+# In production set these with `npx wrangler secret put <NAME>`.
+
+# NVIDIA API key from https://build.nvidia.com (leave blank to run in demo mode)
+NVIDIA_API_KEY=
+
+# Supabase project URL and a server-side key (service_role / sb_secret_...).
+# Leave blank to run without the glossary.
+SUPABASE_URL=
+SUPABASE_SERVICE_KEY=

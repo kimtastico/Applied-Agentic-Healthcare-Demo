@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plainly: Medical Words, Explained</title>
+  <meta name="description" content="Paste a phrase from a discharge note or lab report and get a plain-English explanation at a 6th-grade reading level.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/">Plainly</a>
+      <nav><a href="#glossary">Glossary</a></nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="intro">
+      <h1>What does my medical report mean?</h1>
+      <p>Paste a phrase from a discharge note or lab report. We'll explain it in plain English.</p>
+    </section>
+
+    <form id="explain-form" class="card" autocomplete="off">
+      <label for="phrase">Medical word or phrase</label>
+      <textarea id="phrase" name="phrase" rows="2" maxlength="300" required
+        placeholder="e.g. mild bilateral pleural effusion" spellcheck="false"></textarea>
+      <div class="form-row">
+        <p class="hint" id="privacy-hint">
+          Please leave out names, dates, and ID numbers. We save only the medical term, never who asked.
+        </p>
+        <button type="submit" id="submit">Explain</button>
+      </div>
+      <div class="examples" aria-label="Examples">
+        <span>Try:</span>
+        <button type="button" class="chip" data-phrase="mild bilateral pleural effusion">mild bilateral pleural effusion</button>
+        <button type="button" class="chip" data-phrase="cardiomegaly">cardiomegaly</button>
+        <button type="button" class="chip" data-phrase="leukocytosis">leukocytosis</button>
+      </div>
+    </form>
+
+    <section id="result" class="result" aria-live="polite" hidden></section>
+
+    <section id="glossary" class="glossary">
+      <h2>Most-searched terms</h2>
+      <p class="muted">A public glossary built from what people look up. Only terms are counted.</p>
+      <input id="glossary-filter" type="search" placeholder="Filter terms" aria-label="Filter glossary terms" hidden>
+      <ol id="glossary-list" class="glossary-list"></ol>
+      <p id="glossary-status" class="muted"></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p><strong>This is not medical advice.</strong> It explains words, not your health. Ask your care team what your results mean for you.
+        If you think you are having an emergency, call 911 or your local emergency number.</p>
+      <p class="muted">Explanations are written by AI with creativity turned off (temperature 0) and can still be wrong.</p>
+    </div>
+  </footer>
+</body>
+</html>

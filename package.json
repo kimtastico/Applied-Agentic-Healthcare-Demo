@@ -1,0 +1,16 @@
+{
+  "name": "plainly-medical-explainer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Paste a phrase from a discharge note or lab report and get a plain-English explanation at a 6th-grade reading level.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run --outdir dist",
+    "test": "node --test test/*.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.154.0"
+  }
+}
