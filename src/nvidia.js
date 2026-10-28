@@ -39,8 +39,12 @@ export async function explainWithNvidia(phrase, env) {
   });
 
   if (!res.ok) {
-    // Don't echo the upstream body: it can include the prompt, which includes user text.
-    throw new Error(`NVIDIA API returned HTTP ${res.status}`);
+    // Include NVIDIA's reason (e.g. an unsupported setting) so failures can be diagnosed
+    // from the logs, but blank out the user's phrase in case the error echoes it.
+    let detail = await res.text().catch(() => "");
+    for (const form of [phrase, JSON.stringify(phrase).slice(1, -1)]) detail = detail.split(form).join("[phrase]");
+    detail = detail.slice(0, 300);
+    throw new Error(`NVIDIA API returned HTTP ${res.status}: ${detail}`);
   }
 
   const data = await res.json();

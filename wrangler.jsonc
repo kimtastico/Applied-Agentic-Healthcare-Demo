@@ -31,6 +31,10 @@
     }
   ],
 
-  // Request logs would include visitor IPs; keep them off so we don't track users.
-  "observability": { "enabled": false }
+  // Save the Worker's own error messages (which never contain user text), but not
+  // Cloudflare's per-request logs, which would record visitor IPs.
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "invocation_logs": false }
+  }
 }
