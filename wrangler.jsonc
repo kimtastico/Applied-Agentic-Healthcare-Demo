@@ -15,6 +15,9 @@
   // are set with `npx wrangler secret put <NAME>`, or in .dev.vars for local dev.
   "vars": {
     "NVIDIA_MODEL": "nvidia/nemotron-3.5-lightning-30b-a3b",
+    // "on" = the model thinks briefly before answering (follows the rules better);
+    // "off" = faster answers.
+    "NVIDIA_REASONING": "on",
     "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1"
   },
 

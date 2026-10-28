@@ -3,6 +3,7 @@ import { extractJson, sanitizeExplanation } from "./lib.js";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
+const REASONING_BUDGET = 1024;
 
 /**
  * Ask an NVIDIA-hosted model (OpenAI-compatible chat completions API) to explain a phrase.
@@ -11,6 +12,7 @@ const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
 export async function explainWithNvidia(phrase, env) {
   const baseUrl = (env.NVIDIA_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const model = env.NVIDIA_MODEL || DEFAULT_MODEL;
+  const reasoning = env.NVIDIA_REASONING !== "off";
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -24,9 +26,12 @@ export async function explainWithNvidia(phrase, env) {
       messages: buildMessages(phrase),
       temperature: 0,
       top_p: 1,
-      // Definitions don't need step-by-step reasoning; answers come back faster without it.
-      chat_template_kwargs: { enable_thinking: false },
-      // Headroom in case a reasoning model thinks anyway; the JSON answer is ~300 tokens.
+      // Reasoning lets the model plan before answering, which makes it follow the
+      // rules (no causes, plain words) more reliably. The budget caps the thinking
+      // so answers stay fast; a short definition needs very little.
+      chat_template_kwargs: { enable_thinking: reasoning },
+      ...(reasoning && { reasoning_budget: REASONING_BUDGET }),
+      // Thinking + the ~300-token JSON answer.
       max_tokens: 4096,
       stream: false,
     }),
