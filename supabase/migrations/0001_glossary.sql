@@ -17,6 +17,10 @@ create index if not exists glossary_terms_search_count_idx
   on public.glossary_terms (search_count desc);
 
 -- Anyone may read the glossary; nobody but the server may write.
+-- Explicit grants, in case the project doesn't auto-expose new tables to the Data API.
+grant select on public.glossary_terms to anon, authenticated, service_role;
+revoke insert, update, delete, truncate on public.glossary_terms from anon, authenticated;
+
 alter table public.glossary_terms enable row level security;
 
 drop policy if exists "Glossary is public" on public.glossary_terms;
