@@ -14,7 +14,7 @@
   // Non-secret settings. Secrets (NVIDIA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY)
   // are set with `npx wrangler secret put <NAME>`, or in .dev.vars for local dev.
   "vars": {
-    "NVIDIA_MODEL": "nvidia/nemotron-3.5-lightning-30b-a3b",
+    "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b",
     // "on" = the model thinks briefly before answering (follows the rules better);
     // "off" = faster answers.
     "NVIDIA_REASONING": "on",

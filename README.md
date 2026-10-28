@@ -71,7 +71,7 @@ Open http://localhost:8787 and try one of the example chips.
 
 1. Get an API key at https://build.nvidia.com.
 2. Copy `.dev.vars.example` to `.dev.vars` and set `NVIDIA_API_KEY`.
-3. Optionally change `NVIDIA_MODEL` in `wrangler.jsonc`. The default is `nvidia/nemotron-3.5-lightning-30b-a3b`. Any text chat model with a Free Endpoint on build.nvidia.com works, including reasoning models (their `<think>` text is ignored).
+3. Optionally change `NVIDIA_MODEL` in `wrangler.jsonc`. The default is `nvidia/nemotron-3-ultra-550b-a55b`. Any text chat model with a Free Endpoint on build.nvidia.com works, including reasoning models (their `<think>` text is ignored).
 
 ### 3. Connect Supabase
 

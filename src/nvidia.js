@@ -2,7 +2,7 @@ import { buildMessages } from "./prompt.js";
 import { extractJson, sanitizeExplanation } from "./lib.js";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
+const DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
 const REASONING_BUDGET = 1024;
 
 /**

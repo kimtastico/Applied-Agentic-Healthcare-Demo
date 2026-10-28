@@ -76,7 +76,7 @@ function showResult(data) {
 async function explain(phrase) {
   submit.disabled = true;
   submit.textContent = "Explaining…";
-  showMessage("loading", "Looking that up…");
+  showMessage("loading", "Looking that up… This can take up to 30 seconds.");
   try {
     const res = await fetch("/api/explain", {
       method: "POST",
