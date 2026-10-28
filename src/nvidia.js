@@ -2,7 +2,7 @@ import { SYSTEM_PROMPT, userMessage } from "./prompt.js";
 import { extractJson, sanitizeExplanation } from "./lib.js";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const DEFAULT_MODEL = "meta/llama-3.3-70b-instruct";
+const DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning-30b-a3b";
 
 /**
  * Ask an NVIDIA-hosted model (OpenAI-compatible chat completions API) to explain a phrase.
@@ -27,10 +27,11 @@ export async function explainWithNvidia(phrase, env) {
       ],
       temperature: 0,
       top_p: 1,
-      max_tokens: 700,
+      // Room for reasoning models to think before the ~300-token JSON answer.
+      max_tokens: 4096,
       stream: false,
     }),
-    signal: AbortSignal.timeout(25_000),
+    signal: AbortSignal.timeout(60_000),
   });
 
   if (!res.ok) {
