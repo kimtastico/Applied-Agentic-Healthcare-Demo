@@ -44,11 +44,13 @@ export function isLoggableTerm(term) {
 }
 
 /**
- * Pull the first JSON object out of a model reply. Handles ```json fences
- * and stray text before or after the object.
+ * Pull the first JSON object out of a model reply. Handles ```json fences,
+ * stray text before or after the object, and <think>...</think> blocks
+ * that reasoning models emit before their answer.
  */
 export function extractJson(text) {
   if (typeof text !== "string") return null;
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/^[\s\S]*<\/think>/i, "");
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end <= start) return null;

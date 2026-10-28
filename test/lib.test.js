@@ -44,6 +44,8 @@ test("isLoggableTerm accepts short general terms only", () => {
 test("extractJson handles fences and surrounding text", () => {
   assert.deepEqual(extractJson('```json\n{"a": 1}\n```'), { a: 1 });
   assert.deepEqual(extractJson('Sure! {"a": {"b": 2}} Hope that helps.'), { a: { b: 2 } });
+  assert.deepEqual(extractJson('<think>Use {braces} carefully.</think>\n{"a": 3}'), { a: 3 });
+  assert.deepEqual(extractJson('reasoning with {x} only closing</think>{"a": 4}'), { a: 4 });
   assert.equal(extractJson("no json here"), null);
   assert.equal(extractJson("{broken"), null);
 });
