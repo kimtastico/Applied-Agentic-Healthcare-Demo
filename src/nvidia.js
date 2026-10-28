@@ -27,7 +27,9 @@ export async function explainWithNvidia(phrase, env) {
       ],
       temperature: 0,
       top_p: 1,
-      // Room for reasoning models to think before the ~300-token JSON answer.
+      // Definitions don't need step-by-step reasoning; answers come back faster without it.
+      chat_template_kwargs: { enable_thinking: false },
+      // Headroom in case a reasoning model thinks anyway; the JSON answer is ~300 tokens.
       max_tokens: 4096,
       stream: false,
     }),
