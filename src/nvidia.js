@@ -1,4 +1,4 @@
-import { SYSTEM_PROMPT, userMessage } from "./prompt.js";
+import { buildMessages } from "./prompt.js";
 import { extractJson, sanitizeExplanation } from "./lib.js";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
@@ -21,10 +21,7 @@ export async function explainWithNvidia(phrase, env) {
     },
     body: JSON.stringify({
       model,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage(phrase) },
-      ],
+      messages: buildMessages(phrase),
       temperature: 0,
       top_p: 1,
       // Definitions don't need step-by-step reasoning; answers come back faster without it.

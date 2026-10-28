@@ -1,6 +1,6 @@
 // Bump PROMPT_VERSION whenever SYSTEM_PROMPT changes, so explanations cached
 // in Supabase under the old prompt are regenerated instead of reused.
-export const PROMPT_VERSION = 2;
+export const PROMPT_VERSION = 3;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 
@@ -37,6 +37,50 @@ Reply with ONLY a JSON object, no other text, with exactly these keys:
   "questions": ["1 or 2 short questions the patient could ask their care team"]
 }
 Include at most 4 word_parts.`;
+
+// Worked examples shown to the model before the real question. Small models follow
+// a demonstrated answer far more reliably than a list of rules.
+const EXAMPLES = [
+  {
+    phrase: "mild bilateral pleural effusion",
+    answer: {
+      understood: true,
+      term: "mild bilateral pleural effusion",
+      has_personal_info: false,
+      explanation:
+        "There is a small amount of extra fluid around both lungs. The fluid is in the thin space between each lung and the chest wall. \"Mild\" means the amount is small.",
+      word_parts: [
+        { word: "bilateral", meaning: "on both sides" },
+        { word: "pleural", meaning: "about the thin lining around the lungs" },
+        { word: "effusion", meaning: "fluid that has built up" },
+      ],
+      questions: ["What do you think caused the fluid?", "Will you keep an eye on it?"],
+    },
+  },
+  {
+    phrase: "Potassium 5.8 mmol/L (H)",
+    answer: {
+      understood: true,
+      term: "potassium",
+      has_personal_info: false,
+      explanation:
+        "This test checks how much potassium is in your blood. Potassium helps your heart and muscles work. Normal ranges are a bit different at each lab. Your care team can tell you if your number is normal.",
+      word_parts: [],
+      questions: ["Is my potassium number something to worry about?"],
+    },
+  },
+];
+
+export function buildMessages(phrase) {
+  return [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...EXAMPLES.flatMap((ex) => [
+      { role: "user", content: userMessage(ex.phrase) },
+      { role: "assistant", content: JSON.stringify(ex.answer) },
+    ]),
+    { role: "user", content: userMessage(phrase) },
+  ];
+}
 
 export function userMessage(phrase) {
   return `Explain this phrase: """${phrase}"""`;
