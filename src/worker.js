@@ -142,6 +142,29 @@ async function handleGlossary(request, env, ctx) {
   }
 }
 
+// Makes one real model call with a fixed test word (never user input) and reports
+// NVIDIA's exact error and timing, so problems can be diagnosed from a browser.
+async function handleAiCheck(request, env) {
+  if (!env.NVIDIA_API_KEY) return json({ ok: false, error: "NVIDIA_API_KEY is not set." });
+  if (env.EXPLAIN_LIMITER) {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const { success } = await env.EXPLAIN_LIMITER.limit({ key: ip });
+    if (!success) return errorResponse(429, "rate_limited", "Too many requests. Please wait a minute and try again.");
+  }
+  const settings = {
+    model: env.NVIDIA_MODEL || "(default)",
+    reasoning: env.NVIDIA_REASONING !== "off",
+    test_word: "cardiomegaly",
+  };
+  const started = Date.now();
+  try {
+    const result = await explainWithNvidia("cardiomegaly", env);
+    return json({ ok: true, seconds: (Date.now() - started) / 1000, ...settings, answer: result.explanation });
+  } catch (err) {
+    return json({ ok: false, seconds: (Date.now() - started) / 1000, ...settings, error: err.message });
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const { pathname } = new URL(request.url);
@@ -154,6 +177,7 @@ export default {
       if (request.method !== "GET") return errorResponse(405, "method_not_allowed", "Use GET.");
       return handleGlossary(request, env, ctx);
     }
+    if (pathname === "/api/health/ai") return handleAiCheck(request, env);
     if (pathname === "/api/health") {
       return json({
         ai: Boolean(env.NVIDIA_API_KEY),

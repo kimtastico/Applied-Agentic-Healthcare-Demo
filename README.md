@@ -43,7 +43,7 @@ Safeguards:
 
 ```
 public/            static site (index.html, app.js, styles.css, _headers with a strict CSP)
-src/worker.js      routes: POST /api/explain, GET /api/glossary, GET /api/health
+src/worker.js      routes: POST /api/explain, GET /api/glossary, GET /api/health, GET /api/health/ai
 src/nvidia.js      NVIDIA chat-completions call (temperature 0)
 src/prompt.js      system prompt + PROMPT_VERSION
 src/supabase.js    fetch-based PostgREST client
@@ -113,6 +113,7 @@ Edit `src/prompt.js` and **bump `PROMPT_VERSION`**. Cached explanations from the
 | `POST /api/explain` `{"phrase": "..."}` | Returns `{term, understood, explanation, word_parts, questions, reading_grade, source, logged}`. `source` is `ai`, `glossary`, or `demo`. Limited to 10 requests per minute per visitor. |
 | `GET /api/glossary` | Top 50 terms by search count. Cached at the edge for 60 seconds. |
 | `GET /api/health` | Shows which services are configured. |
+| `GET /api/health/ai` | Makes one test call to NVIDIA with a fixed word and shows the result, the time taken, or NVIDIA's exact error. |
 
 ## Tests
 
