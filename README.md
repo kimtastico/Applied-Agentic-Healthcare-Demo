@@ -36,7 +36,7 @@ Safeguards:
 - The model extracts the general term and strips numbers, names, and dates. "Mr. Smith has pleural effusion" is counted only as `pleural effusion`.
 - `isLoggableTerm` rejects any term that is too long (over 8 words or 80 characters), has unusual characters, or matches a personal-info pattern (emails, phone numbers, dates, long digit runs, MRN/DOB, honorifics).
 - If the input contained a lab value (`potassium 5.8 mmol/L`), only `potassium` is counted. The explanation isn't cached because it may refer to that value.
-- Cloudflare Workers observability logs are turned off in `wrangler.jsonc`, because they would record visitor IPs. The rate limiter keys on IP, but only in Cloudflare's memory.
+- Workers Logs keep only the Worker's own error messages, which never include user text (an echoed phrase is blanked out). Cloudflare's per-request invocation logs, which would record visitor IPs, are turned off in `wrangler.jsonc`. The rate limiter keys on IP, but only in Cloudflare's memory.
 - The UI tells users to leave out names, dates, and IDs, and shows a badge when a term was counted.
 
 ## Project layout
