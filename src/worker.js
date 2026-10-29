@@ -6,7 +6,7 @@ import {
   normalizePhrase,
 } from "./lib.js";
 import { PROMPT_VERSION } from "./prompt.js";
-import { explainWithNvidia } from "./nvidia.js";
+import { explainWithNvidia, requestBody } from "./nvidia.js";
 import { getCachedExplanation, recordSearch, supabaseConfigured, topTerms } from "./supabase.js";
 import { DEMO_EXPLANATIONS } from "./demo.js";
 
@@ -111,7 +111,7 @@ async function handleExplain(request, env, ctx) {
   // Only store the explanation when it describes exactly the glossary term and
   // nothing personal; otherwise just count the term.
   const storeExplanation = result.term === key && keyIsTerm && !result.has_personal_info;
-  const { model, ...stored } = result;
+  const { model, reasoning_used, ...stored } = result;
   const logged = logInBackground(ctx, env, {
     term: result.term,
     explanation: storeExplanation ? stored : null,
@@ -151,15 +151,19 @@ async function handleAiCheck(request, env) {
     const { success } = await env.EXPLAIN_LIMITER.limit({ key: ip });
     if (!success) return errorResponse(429, "rate_limited", "Too many requests. Please wait a minute and try again.");
   }
-  const settings = {
-    model: env.NVIDIA_MODEL || "(default)",
-    reasoning: env.NVIDIA_REASONING !== "off",
-    test_word: "cardiomegaly",
-  };
+  const reasoning = env.NVIDIA_REASONING !== "off";
+  const { messages, ...sent } = requestBody("cardiomegaly", env, reasoning);
+  const settings = { test_word: "cardiomegaly", settings_sent: sent };
   const started = Date.now();
   try {
     const result = await explainWithNvidia("cardiomegaly", env);
-    return json({ ok: true, seconds: (Date.now() - started) / 1000, ...settings, answer: result.explanation });
+    return json({
+      ok: true,
+      seconds: (Date.now() - started) / 1000,
+      ...settings,
+      reasoning_used: result.reasoning_used,
+      answer: result.explanation,
+    });
   } catch (err) {
     return json({ ok: false, seconds: (Date.now() - started) / 1000, ...settings, error: err.message });
   }
