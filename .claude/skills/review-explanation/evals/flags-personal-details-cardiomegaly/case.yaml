@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: flags-personal-details-cardiomegaly
+expected_outcome: |
+  Fails rule 4 because the explanation repeats the name Mr. Smith and the date 03/14. The other rules pass. Suggests a rewrite without the name or date.

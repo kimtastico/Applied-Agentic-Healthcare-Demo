@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: passes-clean-atelectasis-ultra
+expected_outcome: |
+  All five rules pass (atelo = incomplete and ectasis = stretching out are correct roots; the treatment question is a question for the care team, not advice). Overall PASS with no rewrite needed.

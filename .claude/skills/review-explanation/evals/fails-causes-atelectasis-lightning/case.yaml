@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: fails-causes-atelectasis-lightning
+expected_outcome: |
+  A scorecard that fails rule 1 (quotes the surgery / shallow breathing sentence), fails rule 2 (grade about 7.9), fails rule 3 (repeats the whole term, defines the everyday word lung, and mis-defines collapse as filling with fluid), passes rules 4 and 5, gives an overall FAIL, and offers a rewrite with no causes.

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: flags-wrong-root-leukocytosis
+expected_outcome: |
+  Fails only rule 3: leuko means white, not white blood cell. Rules 1, 2, 4 and 5 pass. Overall FAIL (1 of 5), with the corrected word parts.
