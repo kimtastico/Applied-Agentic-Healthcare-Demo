@@ -63,7 +63,9 @@ function showResult(data) {
 
   const meta = el("div", { class: "meta" }, el("span", { class: "badge" }, SOURCE_LABELS[data.source] ?? data.source));
   if (data.reading_grade != null) {
-    meta.append(el("span", { class: "badge", title: "Flesch-Kincaid estimate" }, `Reading level ≈ grade ${Math.round(data.reading_grade)}`));
+    const grade = Math.round(data.reading_grade);
+    const label = grade < 1 ? "Reading level: below grade 1" : `Reading level ≈ grade ${grade}`;
+    meta.append(el("span", { class: "badge", title: "Flesch-Kincaid estimate" }, label));
   }
   if (data.logged) meta.append(el("span", { class: "badge" }, "Counted in public glossary"));
   card.append(meta);

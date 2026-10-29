@@ -1,6 +1,6 @@
 // Bump PROMPT_VERSION whenever the prompt, examples, or model settings change, so
 // explanations cached in Supabase under the old setup are regenerated instead of reused.
-export const PROMPT_VERSION = 5;
+export const PROMPT_VERSION = 6;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 
@@ -20,6 +20,7 @@ Accuracy:
 
 Word parts:
 - Break medical words into their word roots, prefixes, and suffixes when that helps, like "cardio" = heart and "megaly" = bigger than normal.
+- Give each root only its own meaning: "leuko" = white (not "white blood cell"), "cyto" = cell, "osis" = a condition or increase.
 - Or explain each medical word in the phrase, like "bilateral" = on both sides.
 - Do not repeat the whole phrase. Do not explain everyday words like "lung" or "blood".
 - Every meaning must be correct. Leave word_parts empty rather than guess.
@@ -41,6 +42,21 @@ Include at most 4 word_parts.`;
 // Worked examples shown to the model before the real question. Small models follow
 // a demonstrated answer far more reliably than a list of rules.
 const EXAMPLES = [
+  {
+    phrase: "cardiomegaly",
+    answer: {
+      understood: true,
+      term: "cardiomegaly",
+      has_personal_info: false,
+      explanation:
+        "The heart looks bigger than usual on an X-ray or other scan. This is something the doctor sees in the picture. It is not a disease by itself.",
+      word_parts: [
+        { word: "cardio", meaning: "heart" },
+        { word: "megaly", meaning: "bigger than normal" },
+      ],
+      questions: ["Do I need more tests to learn about my heart?"],
+    },
+  },
   {
     phrase: "mild bilateral pleural effusion",
     answer: {
