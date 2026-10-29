@@ -110,3 +110,56 @@ export function fleschKincaidGrade(text) {
   const grade = 0.39 * (words.length / sentences) + 11.8 * (syllables / words.length) - 15.59;
   return Math.max(0, Math.round(grade * 10) / 10);
 }
+
+// Phrases that usually mean a cause, advice, or prediction slipped into an explanation.
+const CAUSE_OR_ADVICE = [
+  /\bcan (happen|occur|be caused)\b/i,
+  /\b(caused|triggered|brought on) by\b/i,
+  /\b(due to|because of|results? from|as a result of)\b/i,
+  /\b(after|following) (surgery|an? operation|an? infection)\b/i,
+  /\brisk\b/i,
+  /\b(common|often seen|usually seen) (in|with|after)\b/i,
+  /\b(you should|try to|make sure|be sure to|drink|rest)\b/i,
+  /\b(treat(ed|ment)?|medicine|medication|antibiotics?)\b/i,
+  /\b(will|usually|often) (go away|get better|clear up|resolve)\b/i,
+  /\bnot (serious|dangerous|a big deal)\b/i,
+  /\b(too high|too low|is normal|is high|is low|dangerous)\b/i,
+];
+
+const wordCount = (s) => (s.match(/[A-Za-z0-9'-]+/g) || []).length;
+
+/**
+ * Rule checks a computer can do: reading grade, sentence length, likely causes or advice,
+ * personal details, a repeated term, question count. Shared by the website's reviewer
+ * step and the review-explanation skill. Flags are leads, not verdicts.
+ */
+export function mechanicalChecks(answer) {
+  const explanation = String(answer?.explanation ?? "");
+  const term = normalizePhrase(answer?.term ?? "");
+  const wordParts = Array.isArray(answer?.word_parts) ? answer.word_parts : [];
+  const questions = Array.isArray(answer?.questions) ? answer.questions : [];
+  const sentences = explanation.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+  const grade = fleschKincaidGrade(explanation);
+
+  return {
+    reading_grade: grade,
+    reading_grade_ok: grade == null ? null : grade <= 6,
+    sentences: sentences.length,
+    words_per_sentence: sentences.map(wordCount),
+    sentences_over_12_words: sentences.filter((s) => wordCount(s) > 12),
+    possible_cause_or_advice: CAUSE_OR_ADVICE.flatMap((re) => {
+      const m = explanation.match(re);
+      return m ? [m[0]] : [];
+    }),
+    possible_personal_details_in: [
+      ["explanation", explanation],
+      ["term", term],
+      ...wordParts.map((p, i) => [`word_parts[${i}]`, `${p?.word ?? ""} ${p?.meaning ?? ""}`]),
+    ].flatMap(([where, text]) => (looksPersonal(text) ? [where] : [])),
+    word_parts_repeating_term: wordParts
+      .filter((p) => term && normalizePhrase(p?.word ?? "") === term)
+      .map((p) => p.word),
+    question_count: questions.length,
+    questions_not_ending_in_question_mark: questions.filter((q) => !String(q).trim().endsWith("?")),
+  };
+}

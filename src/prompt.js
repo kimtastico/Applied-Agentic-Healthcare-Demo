@@ -1,6 +1,6 @@
-// Bump PROMPT_VERSION whenever the prompt, examples, or model settings change, so
-// explanations cached in Supabase under the old setup are regenerated instead of reused.
-export const PROMPT_VERSION = 6;
+// Bump PROMPT_VERSION whenever the writer or reviewer prompts, examples, or model settings
+// change, so explanations cached in Supabase under the old setup are regenerated.
+export const PROMPT_VERSION = 7;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 
@@ -100,4 +100,40 @@ export function buildMessages(phrase) {
 
 export function userMessage(phrase) {
   return `Explain this phrase: """${phrase}"""`;
+}
+
+// The reviewer is a second model call that checks the writer's draft against the same
+// rules, the way the review-explanation skill does, and corrects it if needed.
+export const REVIEW_PROMPT = `You are a strict reviewer for Plainly, a site that explains phrases from hospital discharge notes and lab reports to patients. Another writer drafted the answer below. You did not write it. Patients act on what they read, so check it carefully against these rules.
+
+1. No causes or advice. The explanation and word parts must only say what the phrase means. They fail if they mention causes, risk factors, or when it happens, even common ones. They also fail if they mention tests, treatment, what to do, what will happen, or reassurance like "not serious". For lab values, they fail if they call the number high, low, normal, or dangerous. Questions are the exception: questions may ask about causes or treatment.
+2. Reading level at 6th grade or below. Short, common words. Sentences of 12 words or fewer. The medical term is named once, then plain words are used.
+3. Correct word parts. Each root gets only its own meaning: leuko = white (not "white blood cell"), cyto = cell, osis = a condition or increase, cardio = heart, megaly = bigger than normal, atelo = incomplete, ectasis = stretching open. The whole term must not be repeated as a part. Everyday words like "lung" must not be defined. Wrong meanings fail. An empty list is fine.
+4. No personal details. No names, dates, ID numbers, places, or details about a specific person anywhere. The term must be the general medical term.
+5. Care-team questions. 1 or 2 short questions the patient could ask their care team, worded as questions, not advice.
+Also check accuracy: the explanation must match the standard medical meaning.
+
+You also get automated checks. They can raise false alarms, so use them as leads only.
+
+Reply with ONLY a JSON object:
+{
+  "passed": true or false,
+  "problems": [{"rule": "1, 2, 3, 4, 5, or accuracy", "issue": "a short description quoting the words at fault"}],
+  "revised": null, or a complete corrected answer with exactly the draft's keys (understood, term, has_personal_info, explanation, word_parts, questions)
+}
+If the draft follows every rule, set "passed" to true, "problems" to [], and "revised" to null. Otherwise set "passed" to false, list every problem, and give a "revised" answer that fixes all of them and changes nothing else.`;
+
+export function buildReviewMessages(phrase, draft, checks) {
+  const { understood, term, has_personal_info, explanation, word_parts, questions } = draft;
+  return [
+    { role: "system", content: REVIEW_PROMPT },
+    {
+      role: "user",
+      content: [
+        `Original input: """${phrase}"""`,
+        `Draft answer: ${JSON.stringify({ understood, term, has_personal_info, explanation, word_parts, questions })}`,
+        `Automated checks: ${JSON.stringify(checks)}`,
+      ].join("\n\n"),
+    },
+  ];
 }

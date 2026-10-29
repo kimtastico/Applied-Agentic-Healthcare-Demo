@@ -1,4 +1,4 @@
-import { buildMessages } from "./prompt.js";
+import { buildMessages, buildReviewMessages } from "./prompt.js";
 import { extractJson, sanitizeExplanation } from "./lib.js";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
@@ -16,13 +16,13 @@ export function modelList(env) {
 }
 
 /** The chat-completions request body. /api/health/ai shows its settings (not the messages). */
-export function requestBody(phrase, env, model, reasoning) {
+export function requestBody(messages, env, model, reasoning) {
   // Optional cap on thinking tokens. Not every NVIDIA server supports it
   // (Nemotron Ultra rejects it), so it's only sent when configured.
   const reasoningBudget = Number(env.NVIDIA_REASONING_BUDGET) || 0;
   return {
     model,
-    messages: buildMessages(phrase),
+    messages,
     temperature: 0,
     top_p: 1,
     // Reasoning lets the model plan before answering, which makes it follow the
@@ -35,7 +35,7 @@ export function requestBody(phrase, env, model, reasoning) {
   };
 }
 
-async function callNvidia(phrase, env, model, reasoning) {
+async function callNvidia(messages, phrase, env, model, reasoning) {
   const baseUrl = (env.NVIDIA_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -44,7 +44,7 @@ async function callNvidia(phrase, env, model, reasoning) {
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify(requestBody(phrase, env, model, reasoning)),
+    body: JSON.stringify(requestBody(messages, env, model, reasoning)),
     signal: AbortSignal.timeout(60_000),
   });
   if (res.ok) return { res };
@@ -57,23 +57,27 @@ async function callNvidia(phrase, env, model, reasoning) {
 }
 
 /**
- * Ask an NVIDIA-hosted model (OpenAI-compatible chat completions API) to explain a phrase.
+ * Send one chat to an NVIDIA-hosted model (OpenAI-compatible API), trying the configured
+ * models in order. `phrase` is the user's text, blanked out of any logged error.
  * temperature is pinned to 0: these are factual definitions, and creativity is a bug.
  */
-export async function explainWithNvidia(phrase, env) {
+async function chat(messages, phrase, env) {
   const models = modelList(env);
   for (const [i, model] of models.entries()) {
     let reasoning = env.NVIDIA_REASONING !== "off";
-    let attempt = await callNvidia(phrase, env, model, reasoning);
+    let attempt = await callNvidia(messages, phrase, env, model, reasoning);
 
     // Some NVIDIA servers reject thinking-related settings (Ultra: "thinking_token_budget
     // is not yet supported"). Rather than fail, retry once with reasoning off.
     if (!attempt.res && reasoning && attempt.status === 400 && /think|reason/i.test(attempt.detail)) {
       console.warn(`${model}: reasoning rejected, retrying without it: ${attempt.detail}`);
       reasoning = false;
-      attempt = await callNvidia(phrase, env, model, reasoning);
+      attempt = await callNvidia(messages, phrase, env, model, reasoning);
     }
-    if (attempt.res) return parseReply(await attempt.res.json(), model, reasoning);
+    if (attempt.res) {
+      const choice = (await attempt.res.json())?.choices?.[0];
+      return { content: choice?.message?.content, finishReason: choice?.finish_reason, model, reasoning };
+    }
 
     const error = `${model}: NVIDIA API returned HTTP ${attempt.status}: ${attempt.detail}`;
     if (i < models.length - 1 && FALLBACK_STATUSES.has(attempt.status)) {
@@ -84,12 +88,29 @@ export async function explainWithNvidia(phrase, env) {
   }
 }
 
-function parseReply(data, model, reasoning) {
-  const choice = data?.choices?.[0];
-  const result = sanitizeExplanation(extractJson(choice?.message?.content));
-  if (!result) {
-    // finish_reason "length" means thinking used up max_tokens before the answer.
-    throw new Error(`${model}: reply was not valid JSON (finish_reason: ${choice?.finish_reason ?? "unknown"})`);
-  }
-  return { ...result, model, reasoning_used: reasoning };
+// finish_reason "length" means thinking used up max_tokens before the answer.
+const notJson = (reply) =>
+  new Error(`${reply.model}: reply was not valid JSON (finish_reason: ${reply.finishReason ?? "unknown"})`);
+
+/** Writer: draft a plain-English explanation of the phrase. */
+export async function explainWithNvidia(phrase, env) {
+  const reply = await chat(buildMessages(phrase), phrase, env);
+  const result = sanitizeExplanation(extractJson(reply.content));
+  if (!result) throw notJson(reply);
+  return { ...result, model: reply.model, reasoning_used: reply.reasoning };
+}
+
+/** Reviewer: check a draft against the rules; returns { passed, problems, revised }. */
+export async function reviewWithNvidia(phrase, draft, checks, env) {
+  const reply = await chat(buildReviewMessages(phrase, draft, checks), phrase, env);
+  const raw = extractJson(reply.content);
+  if (!raw || typeof raw.passed !== "boolean") throw notJson(reply);
+  const problems = Array.isArray(raw.problems)
+    ? raw.problems
+        .map((p) => ({ rule: String(p?.rule ?? "").slice(0, 20), issue: String(p?.issue ?? "").trim().slice(0, 300) }))
+        .filter((p) => p.issue)
+        .slice(0, 8)
+    : [];
+  const revised = raw.passed ? null : sanitizeExplanation(raw.revised);
+  return { passed: raw.passed, problems, revised: revised?.understood ? revised : null, model: reply.model };
 }

@@ -34,6 +34,14 @@ const SOURCE_LABELS = {
   demo: "Demo example",
 };
 
+// What the reviewer model did with the writer's draft.
+const REVIEW_LABELS = {
+  passed: "Checked by reviewer AI",
+  revised: "Corrected by reviewer AI",
+  unresolved: "Reviewer flagged issues",
+  skipped: "Not yet reviewed",
+};
+
 function showResult(data) {
   if (!data.understood) {
     showMessage("unclear", data.explanation || "We couldn't tell what that phrase means. Try copying just the medical words.");
@@ -67,8 +75,21 @@ function showResult(data) {
     const label = grade < 1 ? "Reading level: below grade 1" : `Reading level ≈ grade ${grade}`;
     meta.append(el("span", { class: "badge", title: "Flesch-Kincaid estimate" }, label));
   }
+  const reviewLabel = REVIEW_LABELS[data.review?.status];
+  if (reviewLabel) meta.append(el("span", { class: "badge" }, reviewLabel));
   if (data.logged) meta.append(el("span", { class: "badge" }, "Counted in public glossary"));
   card.append(meta);
+
+  // Show what the reviewer caught, so readers can see the check at work.
+  if (data.review?.problems?.length) {
+    const heading = data.review.status === "revised" ? "What the reviewer fixed" : "What the reviewer flagged";
+    card.append(
+      el("details", { class: "review" },
+        el("summary", {}, heading),
+        el("ul", {}, ...data.review.problems.map((p) => el("li", {}, p.issue))),
+      ),
+    );
+  }
 
   resultEl.hidden = false;
   resultEl.className = "result";
@@ -78,7 +99,7 @@ function showResult(data) {
 async function explain(phrase) {
   submit.disabled = true;
   submit.textContent = "Explaining…";
-  showMessage("loading", "Looking that up… This can take up to 30 seconds.");
+  showMessage("loading", "Looking that up… A writer AI drafts the answer and a reviewer AI checks it. The first time someone asks, this can take up to a minute.");
   try {
     const res = await fetch("/api/explain", {
       method: "POST",

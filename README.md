@@ -13,15 +13,24 @@ Paste a phrase from a discharge note or lab report, like *"mild bilateral pleura
 Browser ──POST /api/explain──▶ Worker ──▶ Supabase: same term cached under this prompt? ──yes──▶ reuse it
                                   │                                                        no
                                   │                                                        ▼
-                                  │                                  NVIDIA chat completions (temperature 0, JSON only)
+                                  │                         Writer AI drafts (temperature 0, JSON only)
+                                  │                                                        ▼
+                                  │                         Code checks: reading grade, cause phrases, personal details
+                                  │                                                        ▼
+                                  │                         Reviewer AI checks the draft against the five rules
+                                  │                         and returns it approved, or a corrected version
                                   │                                                        │
                                   └──── background: record_search(term) ◀──────────────────┘
 ```
 
 1. The phrase is normalized (lowercase, collapsed whitespace). If it's already a glossary term, the stored explanation is returned, so the same term always gets the same answer.
-2. Otherwise the model returns strict JSON: `understood`, a cleaned `term`, `has_personal_info`, `explanation`, `word_parts`, and `questions`.
-3. The Worker estimates the Flesch-Kincaid grade of the explanation and shows it to the user as a check on the 6th-grade target.
-4. In the background (`ctx.waitUntil`), the Worker calls the Supabase function `record_search` to count the term.
+2. Otherwise the **writer** model returns strict JSON: `understood`, a cleaned `term`, `has_personal_info`, `explanation`, `word_parts`, and `questions`.
+3. Code runs the checks a computer can do (`mechanicalChecks` in `src/lib.js`). The **reviewer** model then checks the draft against the five rules (no causes or advice, grade 6 or below, correct word roots, no personal details, care-team questions), using those results as leads. If it finds problems, its corrected version replaces the draft. The page shows "Checked by reviewer AI" or "Corrected by reviewer AI", and lists what was fixed.
+4. Only answers the reviewer approved or corrected are saved to the glossary, along with what the reviewer found. If the reviewer is unavailable, the visitor still gets the draft, marked "Not yet reviewed", and it isn't saved.
+5. The Worker estimates the Flesch-Kincaid grade of the explanation and shows it to the user as a check on the 6th-grade target.
+6. In the background (`ctx.waitUntil`), the Worker calls the Supabase function `record_search` to count the term.
+
+The writer and reviewer each make one AI call, so a term's first search takes about twice as long. Every later search is instant from the glossary. Set `NVIDIA_REVIEW` to `"off"` in `wrangler.jsonc` to use the writer alone.
 
 ### What gets stored, and what doesn't
 
@@ -44,13 +53,14 @@ Safeguards:
 ```
 public/            static site (index.html, app.js, styles.css, _headers with a strict CSP)
 src/worker.js      routes: POST /api/explain, GET /api/glossary, GET /api/health, GET /api/health/ai
-src/nvidia.js      NVIDIA chat-completions call (temperature 0)
-src/prompt.js      system prompt + PROMPT_VERSION
+src/pipeline.js    writer → code checks → reviewer
+src/nvidia.js      NVIDIA chat-completions calls for the writer and reviewer (temperature 0, backup models)
+src/prompt.js      writer and reviewer prompts, worked examples, PROMPT_VERSION
 src/supabase.js    fetch-based PostgREST client
 src/lib.js         pure helpers: normalization, privacy filters, JSON parsing, readability
 src/demo.js        built-in answers for demo mode
 supabase/migrations/0001_glossary.sql   table, RLS, record_search()
-test/lib.test.js   unit tests (node --test)
+test/              unit tests (node --test), including the writer/reviewer pipeline
 ```
 
 ## Setup
@@ -104,7 +114,7 @@ You can also connect this repo to Cloudflare Workers Builds: the build command i
 
 ## Changing the prompt
 
-Edit `src/prompt.js` and **bump `PROMPT_VERSION`**. Cached explanations from the old version are skipped and regenerated the next time someone searches that term.
+Edit the writer or reviewer prompt in `src/prompt.js` and **bump `PROMPT_VERSION`**. Cached explanations from the old version are skipped and regenerated the next time someone searches that term.
 
 ## API
 

@@ -122,6 +122,10 @@ button[type="submit"]:disabled { opacity: 0.6; cursor: wait; }
 .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; font-size: 0.85rem; }
 .badge { background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
 
+.review { margin-top: 12px; font-size: 0.9rem; color: var(--muted); }
+.review summary { cursor: pointer; }
+.review ul { margin: 8px 0 0; padding-left: 22px; }
+
 .glossary { margin: 48px 0; }
 .glossary input[type="search"] { margin: 12px 0; }
 .glossary-list { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }

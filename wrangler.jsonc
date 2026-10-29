@@ -20,6 +20,9 @@
     // "off" = faster answers. To cap thinking on models that support it (not Ultra),
     // add "NVIDIA_REASONING_BUDGET": "1024".
     "NVIDIA_REASONING": "off",
+    // "on" = a second AI call reviews each new answer against the site's rules and
+    // corrects it if needed (slower first search, safer answers); "off" = writer only.
+    "NVIDIA_REVIEW": "on",
     "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1"
   },
 

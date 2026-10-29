@@ -5,8 +5,9 @@ import {
   looksPersonal,
   normalizePhrase,
 } from "./lib.js";
-import { PROMPT_VERSION } from "./prompt.js";
-import { explainWithNvidia, modelList, requestBody } from "./nvidia.js";
+import { PROMPT_VERSION, buildMessages } from "./prompt.js";
+import { modelList, requestBody } from "./nvidia.js";
+import { explainAndReview } from "./pipeline.js";
 import { getCachedExplanation, recordSearch, supabaseConfigured, topTerms } from "./supabase.js";
 import { DEMO_EXPLANATIONS } from "./demo.js";
 
@@ -26,7 +27,7 @@ function json(body, status = 200, extraHeaders = {}) {
 
 const errorResponse = (status, error, message) => json({ error, message }, status);
 
-function present(result, source, logged) {
+function present(result, source, logged, review = result.review) {
   return {
     term: result.term,
     understood: result.understood,
@@ -36,6 +37,8 @@ function present(result, source, logged) {
     reading_grade: result.understood ? fleschKincaidGrade(result.explanation) : null,
     source, // "ai" | "glossary" | "demo"
     logged, // whether the term was counted in the public glossary
+    // What the reviewer model did: passed, revised (with the problems it fixed), etc.
+    review: review ? { status: review.status, problems: review.problems ?? [] } : null,
   };
 }
 
@@ -97,28 +100,30 @@ async function handleExplain(request, env, ctx) {
     return json(present(demo, "demo", logged));
   }
 
-  // 3. Ask the model.
-  let result;
+  // 3. Writer drafts, reviewer checks (and corrects if needed).
+  let result, review;
   try {
-    result = await explainWithNvidia(phrase, env);
+    ({ result, review } = await explainAndReview(phrase, env));
   } catch (err) {
     console.error(err.message);
     return errorResponse(502, "upstream_error", "We couldn't get an explanation right now. Please try again.");
   }
 
-  if (!result.understood) return json(present(result, "ai", false));
+  if (!result.understood) return json(present(result, "ai", false, review));
 
-  // Only store the explanation when it describes exactly the glossary term and
-  // nothing personal; otherwise just count the term.
-  const storeExplanation = result.term === key && keyIsTerm && !result.has_personal_info;
-  const { model, reasoning_used, ...stored } = result;
+  // Only store the explanation when it describes exactly the glossary term, has nothing
+  // personal, and the reviewer approved or corrected it; otherwise just count the term.
+  const reviewed = review.status === "passed" || review.status === "revised";
+  const storeExplanation = result.term === key && keyIsTerm && !result.has_personal_info && reviewed;
+  const { model, reasoning_used, ...answer } = result;
+  const stored = { ...answer, review };
   const logged = logInBackground(ctx, env, {
     term: result.term,
     explanation: storeExplanation ? stored : null,
     model: storeExplanation ? model : null,
     promptVersion: storeExplanation ? PROMPT_VERSION : null,
   });
-  return json(present(result, "ai", logged));
+  return json(present(result, "ai", logged, review));
 }
 
 async function handleGlossary(request, env, ctx) {
@@ -153,17 +158,19 @@ async function handleAiCheck(request, env) {
   }
   const reasoning = env.NVIDIA_REASONING !== "off";
   const models = modelList(env);
-  const { messages, model, ...sent } = requestBody("cardiomegaly", env, models[0], reasoning);
+  const { messages, model, ...sent } = requestBody(buildMessages("cardiomegaly"), env, models[0], reasoning);
   const settings = { test_word: "cardiomegaly", models_in_order: models, settings_sent: sent };
   const started = Date.now();
   try {
-    const result = await explainWithNvidia("cardiomegaly", env);
+    const { result, review } = await explainAndReview("cardiomegaly", env);
     return json({
       ok: true,
       seconds: (Date.now() - started) / 1000,
       ...settings,
       model_used: result.model,
       reasoning_used: result.reasoning_used,
+      review_status: review.status,
+      review_problems: review.problems,
       answer: result.explanation,
     });
   } catch (err) {
