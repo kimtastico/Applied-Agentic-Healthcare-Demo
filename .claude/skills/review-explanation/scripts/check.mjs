@@ -3,6 +3,7 @@
 //
 // Usage: node .claude/skills/review-explanation/scripts/check.mjs <file>
 //   <file> holds /api/explain JSON, or plain text (treated as the explanation).
+//   Use "-" to read from stdin: echo '{"explanation": "..."}' | node check.mjs -
 // Prints JSON. Flags are leads for the reviewer, not verdicts.
 
 import { readFileSync } from "node:fs";
@@ -15,7 +16,7 @@ if (!path) {
   process.exit(1);
 }
 
-const raw = readFileSync(path, "utf8").trim();
+const raw = readFileSync(path === "-" ? 0 : path, "utf8").trim();
 let answer;
 try {
   answer = JSON.parse(raw);

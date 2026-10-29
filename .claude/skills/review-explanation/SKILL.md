@@ -20,10 +20,11 @@ The rules come from `src/prompt.js`. If that file has changed in ways that confl
 
 ## 2. Run the checker
 
-Save the answer as JSON (or plain text) to a scratch file, then run this from the repo root:
+Run this from the repo root, with the answer as JSON (or plain text) in a file, or piped in with `-`:
 
 ```bash
 node .claude/skills/review-explanation/scripts/check.mjs <file>
+echo '{"explanation": "...", "word_parts": [...], "questions": [...]}' | node .claude/skills/review-explanation/scripts/check.mjs -
 ```
 
 It reports the reading grade, using the same Flesch-Kincaid function as the site's grade pill. It also reports sentence lengths, phrases that often signal causes or advice, personal-detail patterns, word parts that repeat the term, and the question count. Treat the flags as leads to check, not verdicts. "Can happen" in a question is fine, but the same words in the explanation are not.
