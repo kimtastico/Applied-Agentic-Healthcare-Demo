@@ -3,7 +3,6 @@ import { extractJson, sanitizeExplanation } from "./lib.js";
 
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
-const REASONING_BUDGET = 1024;
 
 /**
  * Ask an NVIDIA-hosted model (OpenAI-compatible chat completions API) to explain a phrase.
@@ -13,6 +12,9 @@ export async function explainWithNvidia(phrase, env) {
   const baseUrl = (env.NVIDIA_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
   const model = env.NVIDIA_MODEL || DEFAULT_MODEL;
   const reasoning = env.NVIDIA_REASONING !== "off";
+  // Optional cap on thinking tokens. Not every NVIDIA server supports it
+  // (Nemotron Ultra rejects it), so it's only sent when configured.
+  const reasoningBudget = Number(env.NVIDIA_REASONING_BUDGET) || 0;
 
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -27,12 +29,11 @@ export async function explainWithNvidia(phrase, env) {
       temperature: 0,
       top_p: 1,
       // Reasoning lets the model plan before answering, which makes it follow the
-      // rules (no causes, plain words) more reliably. The budget caps the thinking
-      // so answers stay fast; a short definition needs very little.
+      // rules (no causes, plain words) more reliably.
       chat_template_kwargs: { enable_thinking: reasoning },
-      ...(reasoning && { reasoning_budget: REASONING_BUDGET }),
-      // Thinking + the ~300-token JSON answer.
-      max_tokens: 4096,
+      ...(reasoning && reasoningBudget > 0 && { reasoning_budget: reasoningBudget }),
+      // Room for unbounded thinking plus the ~300-token JSON answer.
+      max_tokens: 8192,
       stream: false,
     }),
     signal: AbortSignal.timeout(60_000),
@@ -48,8 +49,11 @@ export async function explainWithNvidia(phrase, env) {
   }
 
   const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
-  const result = sanitizeExplanation(extractJson(content));
-  if (!result) throw new Error("Model reply was not valid JSON");
+  const choice = data?.choices?.[0];
+  const result = sanitizeExplanation(extractJson(choice?.message?.content));
+  if (!result) {
+    // finish_reason "length" means thinking used up max_tokens before the answer.
+    throw new Error(`Model reply was not valid JSON (finish_reason: ${choice?.finish_reason ?? "unknown"})`);
+  }
   return { ...result, model };
 }
