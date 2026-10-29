@@ -14,7 +14,8 @@
   // Non-secret settings. Secrets (NVIDIA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY)
   // are set with `npx wrangler secret put <NAME>`, or in .dev.vars for local dev.
   "vars": {
-    "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b",
+    // Tried in order: if a model is overloaded, retired, or missing, the next one answers.
+    "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b, deepseek-ai/deepseek-v4.1-flash, nvidia/nemotron-3.5-lightning-30b-a3b",
     // "on" = the model thinks before answering (follows the rules better);
     // "off" = faster answers. To cap thinking on models that support it (not Ultra),
     // add "NVIDIA_REASONING_BUDGET": "1024".

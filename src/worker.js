@@ -6,7 +6,7 @@ import {
   normalizePhrase,
 } from "./lib.js";
 import { PROMPT_VERSION } from "./prompt.js";
-import { explainWithNvidia, requestBody } from "./nvidia.js";
+import { explainWithNvidia, modelList, requestBody } from "./nvidia.js";
 import { getCachedExplanation, recordSearch, supabaseConfigured, topTerms } from "./supabase.js";
 import { DEMO_EXPLANATIONS } from "./demo.js";
 
@@ -152,8 +152,9 @@ async function handleAiCheck(request, env) {
     if (!success) return errorResponse(429, "rate_limited", "Too many requests. Please wait a minute and try again.");
   }
   const reasoning = env.NVIDIA_REASONING !== "off";
-  const { messages, ...sent } = requestBody("cardiomegaly", env, reasoning);
-  const settings = { test_word: "cardiomegaly", settings_sent: sent };
+  const models = modelList(env);
+  const { messages, model, ...sent } = requestBody("cardiomegaly", env, models[0], reasoning);
+  const settings = { test_word: "cardiomegaly", models_in_order: models, settings_sent: sent };
   const started = Date.now();
   try {
     const result = await explainWithNvidia("cardiomegaly", env);
@@ -161,6 +162,7 @@ async function handleAiCheck(request, env) {
       ok: true,
       seconds: (Date.now() - started) / 1000,
       ...settings,
+      model_used: result.model,
       reasoning_used: result.reasoning_used,
       answer: result.explanation,
     });
