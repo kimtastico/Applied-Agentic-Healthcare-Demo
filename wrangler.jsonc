@@ -18,7 +18,7 @@
     // "on" = the model thinks before answering (follows the rules better);
     // "off" = faster answers. To cap thinking on models that support it (not Ultra),
     // add "NVIDIA_REASONING_BUDGET": "1024".
-    "NVIDIA_REASONING": "on",
+    "NVIDIA_REASONING": "off",
     "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1"
   },
 
