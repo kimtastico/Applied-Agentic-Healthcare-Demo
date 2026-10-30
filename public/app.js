@@ -137,6 +137,7 @@ function renderGlossary() {
       );
       btn.addEventListener("click", () => {
         input.value = t.term;
+        updateCount();
         explain(t.term);
         form.scrollIntoView({ behavior: "smooth" });
       });
@@ -170,6 +171,32 @@ form.addEventListener("submit", (e) => {
 });
 
 // Enter submits; Shift+Enter adds a new line.
+// Character counter: "120 / 300", red from 90% of the limit. The box itself stops at the
+// limit, so a long paste is cut off; say so instead of dropping text silently.
+const MAX_CHARS = Number(input.getAttribute("maxlength")) || 300;
+const NEAR_LIMIT = Math.floor(MAX_CHARS * 0.9);
+const charCount = document.getElementById("char-count");
+const pasteNote = document.getElementById("paste-note");
+
+function updateCount() {
+  const n = input.value.length;
+  charCount.textContent = `${n} / ${MAX_CHARS}`;
+  charCount.classList.toggle("near-limit", n >= NEAR_LIMIT);
+  if (n < MAX_CHARS) pasteNote.textContent = "";
+}
+
+input.addEventListener("input", updateCount);
+input.addEventListener("paste", (e) => {
+  const pasted = e.clipboardData?.getData("text") ?? "";
+  const replaced = input.selectionEnd - input.selectionStart;
+  if (input.value.length - replaced + pasted.length > MAX_CHARS) {
+    // Set after the paste lands, so updateCount doesn't clear it straight away.
+    setTimeout(() => {
+      pasteNote.textContent = `Only the first ${MAX_CHARS} characters were kept. Try pasting just the medical phrase.`;
+    }, 0);
+  }
+});
+
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -180,6 +207,7 @@ input.addEventListener("keydown", (e) => {
 for (const chip of document.querySelectorAll(".chip")) {
   chip.addEventListener("click", () => {
     input.value = chip.dataset.phrase;
+    updateCount();
     explain(chip.dataset.phrase);
   });
 }
@@ -189,7 +217,8 @@ glossaryFilter.addEventListener("input", renderGlossary);
 // Support shareable links like /?q=cardiomegaly
 const initial = new URLSearchParams(location.search).get("q");
 if (initial) {
-  input.value = initial.slice(0, 300);
+  input.value = initial.slice(0, MAX_CHARS);
+  updateCount();
   explain(input.value);
 }
 

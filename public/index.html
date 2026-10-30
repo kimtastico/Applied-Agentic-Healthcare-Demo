@@ -26,7 +26,12 @@
     <form id="explain-form" class="card" autocomplete="off">
       <label for="phrase">Medical word or phrase</label>
       <textarea id="phrase" name="phrase" rows="2" maxlength="300" required
-        placeholder="e.g. mild bilateral pleural effusion" spellcheck="false"></textarea>
+        placeholder="e.g. mild bilateral pleural effusion" spellcheck="false"
+        aria-describedby="char-count privacy-hint"></textarea>
+      <div class="field-meta">
+        <p id="paste-note" class="paste-note" role="status"></p>
+        <p id="char-count" class="char-count">0 / 300</p>
+      </div>
       <div class="form-row">
         <p class="hint" id="privacy-hint">
           Please leave out names, dates, and ID numbers. We save only the medical term, never who asked.
