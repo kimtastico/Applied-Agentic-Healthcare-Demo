@@ -1,0 +1,11 @@
+{
+  "name": "plainly-presentation",
+  "private": true,
+  "description": "Builds the Plainly class deck (plainly-deck.pptx) from build-deck.js",
+  "scripts": {
+    "build": "node build-deck.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}
