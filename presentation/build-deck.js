@@ -363,7 +363,55 @@ function label(slide, name, x, y, w, text) {
   );
 }
 
-// --- Slide 7: demo ---------------------------------------------------------------------
+// --- Slide 7: admin review log --------------------------------------------------------
+
+{
+  const s = pres.addSlide({ masterName: "Title only" });
+  s.addText("Admins see how every review went", { placeholder: "title" });
+
+  s.addText(
+    [{ text: "Private Supabase table: " }, { text: "review_log", options: { fontFace: MONO } }, { text: " (example rows)" }],
+    { ...body(), x: M, y: 1.45, w: W, h: 0.55, objectName: "Table name" },
+  );
+
+  // Laid out like the real table, as on the glossary slide: column names across the top.
+  // The outcome is the colored result: approved in the accent, failed in the supporting accent.
+  const head = (text) => ({ text, options: { fontSize: BODY_PT, fontFace: MONO, bold: true, color: C.text1 } });
+  const val = (text, extra = {}) => ({ text, options: { fontSize: BODY_PT, color: C.text1, ...extra } });
+  const rows = [
+    [head("term"), head("outcome"), head("failed_rules"), head("notes")],
+    [val("cardiomegaly"), val("approved", { color: C.accent1, bold: true }), val("none"), val("none")],
+    [val("atelectasis"), val("corrected"), val("1"), val("“Named a cause”")],
+    [val("pleural effusion"), val("failed", { color: C.accent2, bold: true }), val("1"), val("“Predicted an outcome”")],
+  ];
+  s.addTable(rows, {
+    x: M, y: 2.15, w: W, colW: [3.25, 2.55, 3.45, 2.88],
+    border: { type: "solid", pt: 1, color: HEX.lt2 },
+    fill: { color: C.background1 }, margin: [0.06, 0.12, 0.06, 0.12], valign: "middle",
+    objectName: "Example review rows",
+  });
+  s.addText("Visitors never see it, only admins", {
+    ...body(), x: M, y: 5.85, w: W, h: 0.55, objectName: "Who can see it",
+  });
+  s.addNotes(
+    "Every new answer’s review is recorded in a second Supabase table, review_log, so admins can judge how " +
+      "well the AI models are doing. It has 10 columns: id, created_at, term, outcome (approved, corrected, " +
+      "failed, skipped or not_understood), failed_rules (which of the five rules the draft broke), notes (the " +
+      "reviewer’s explanation), writer_model, reviewer_model, prompt_version and seconds.\n\n" +
+      "How it differs from the glossary: the glossary is public, with one row per term; the review log is " +
+      "private, with one row per review. Row-level security gives the public no access at all; only the " +
+      "site’s server can write to it, and admins read it in Supabase’s Table Editor.\n\n" +
+      "Why it’s private: a failed draft can contain harmful text — for example, a prediction about someone’s " +
+      "health. Visitors never see failed drafts or the reasons they failed; they get a gentle “couldn’t " +
+      "double-check” note instead. Admins see the details here.\n\n" +
+      "Privacy: like the glossary, it never stores who searched or what they typed. If the input looked " +
+      "personal, only the outcome and rule numbers are kept, never the reviewer’s notes.\n\n" +
+      "The rows shown are examples of the format, with the notes shortened, not live data.\n\n" +
+      "Source: project code, supabase/migrations/0002_review_log.sql and src/reviewlog.js.",
+  );
+}
+
+// --- Slide 8: demo ---------------------------------------------------------------------
 
 {
   const s = pres.addSlide({ masterName: "Title only" });
