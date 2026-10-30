@@ -377,14 +377,13 @@ test("a correct definition that says 'too high' isn't blocked by the final check
   assert.equal(review.status, "revised");
 });
 
-test("the potassium worked example spells out each part of its unit, without a normal range", async () => {
+test("the potassium worked example explains its unit and what mmol is short for, without numbers", async () => {
   const { buildMessages } = await import("../src/prompt.js");
   const messages = buildMessages("sodium 128 mmol/L");
   const potassium = JSON.parse(messages.find((m) => m.role === "assistant" && m.content.includes("potassium")).content);
-  assert.deepEqual(
-    potassium.word_parts.map((p) => [p.word, p.meaning.split(":")[0]]),
-    [["mmol", "millimoles"], ["L", "liter"]],
-  );
+  assert.equal(potassium.word_parts.length, 1);
+  assert.equal(potassium.word_parts[0].word, "mmol/L");
+  assert.match(potassium.word_parts[0].meaning, /one liter of your blood, measured in millimoles \(mmol is short for millimoles, a very small amount\)/);
   assert.doesNotMatch(JSON.stringify(potassium.word_parts), /\d/);
 });
 

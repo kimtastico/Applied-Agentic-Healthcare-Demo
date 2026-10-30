@@ -50,7 +50,7 @@ Check every word part against `references/word-roots.md`. Read it rather than re
 - the whole term is repeated as a "part";
 - an everyday word like "lung" is defined.
 
-A unit of measure must be spelled out part by part, each part starting with its full name (e.g. "mmol" = millimoles, "L" = liter; the reference lists the common ones). It fails if a part isn't spelled out, or if it gives a normal range or any number. Those full names are long words, but like the medical term they don't count against rule 2. An empty word-parts list passes. The prompt prefers no parts over a guess. If a root isn't in the reference and you aren't confident, say "unverified" rather than pass or fail.
+A unit of measure must be one word part that says what it measures and what each abbreviation is short for (e.g. "mmol/L" = how much potassium is in one liter of your blood, measured in millimoles: mmol is short for millimoles, a very small amount; the reference lists the common ones). It fails if an abbreviation isn't spelled out, or if it gives a normal range or any number. Those full names are long words, but like the medical term they don't count against rule 2. An empty word-parts list passes. The prompt prefers no parts over a guess. If a root isn't in the reference and you aren't confident, say "unverified" rather than pass or fail.
 
 **Rule 4: No personal details.**
 The answer must never repeat names, dates, ID numbers, places, or other details about a person, even if the input contained them. The site's whole promise is that nothing about the person is kept or echoed. "You" and "your" are fine. The term must also be clean, because it is saved to the public glossary.
