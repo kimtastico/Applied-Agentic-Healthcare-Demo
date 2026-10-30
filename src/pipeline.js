@@ -1,5 +1,5 @@
 import { mechanicalChecks } from "./lib.js";
-import { explainWithNvidia, reviewWithNvidia } from "./nvidia.js";
+import { explainWithModel, reviewWithModel } from "./models.js";
 
 // The whole answer (writer, plus reviewer if there's time) should arrive within this,
 // so visitors aren't left waiting on a stalled free endpoint.
@@ -25,10 +25,10 @@ const MIN_REVIEW_SECONDS = 10;
  * `attempts` collects every model call (role, model, outcome, seconds) for diagnostics.
  */
 export async function explainAndReview(phrase, env, attempts = []) {
-  const deadline = Date.now() + (Number(env.NVIDIA_TOTAL_SECONDS) || DEFAULT_TOTAL_SECONDS) * 1000;
-  const draft = await explainWithNvidia(phrase, env, deadline, attempts);
+  const deadline = Date.now() + (Number(env.ANSWER_TIMEOUT_SECONDS) || DEFAULT_TOTAL_SECONDS) * 1000;
+  const draft = await explainWithModel(phrase, env, deadline, attempts);
   if (!draft.understood) return { result: draft, review: { status: "not_needed", problems: [] } };
-  if (env.NVIDIA_REVIEW === "off") return { result: draft, review: { status: "skipped", problems: [] } };
+  if (env.AI_REVIEW === "off") return { result: draft, review: { status: "skipped", problems: [] } };
   if (deadline - Date.now() < MIN_REVIEW_SECONDS * 1000) {
     console.warn("Writer was slow; no time left to review, returning unreviewed draft");
     return { result: draft, review: { status: "skipped", problems: [] } };
@@ -36,7 +36,7 @@ export async function explainAndReview(phrase, env, attempts = []) {
 
   let verdict;
   try {
-    verdict = await reviewWithNvidia(phrase, draft, mechanicalChecks(draft), env, deadline, attempts);
+    verdict = await reviewWithModel(phrase, draft, mechanicalChecks(draft), env, deadline, attempts);
   } catch (err) {
     // The draft is still a reasonable answer; show it, but don't save it as reviewed.
     console.error(`Reviewer failed, returning unreviewed draft: ${err.message}`);

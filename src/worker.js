@@ -5,8 +5,8 @@ import {
   looksPersonal,
   normalizePhrase,
 } from "./lib.js";
-import { PROMPT_VERSION, buildMessages } from "./prompt.js";
-import { modelList, requestBody } from "./nvidia.js";
+import { PROMPT_VERSION } from "./prompt.js";
+import { aiConfigured, modelList } from "./models.js";
 import { explainAndReview } from "./pipeline.js";
 import { getCachedExplanation, recordSearch, supabaseConfigured, topTerms } from "./supabase.js";
 import { DEMO_EXPLANATIONS } from "./demo.js";
@@ -87,7 +87,7 @@ async function handleExplain(request, env, ctx) {
   }
 
   // 2. No AI configured yet: serve the built-in examples.
-  if (!env.NVIDIA_API_KEY) {
+  if (!aiConfigured(env)) {
     const demo = DEMO_EXPLANATIONS[key];
     if (!demo) {
       return errorResponse(
@@ -153,20 +153,18 @@ async function handleGlossary(request, env, ctx) {
 const AI_CHECK_WORD = "hyponatremia";
 
 async function handleAiCheck(request, env) {
-  if (!env.NVIDIA_API_KEY) return json({ ok: false, error: "NVIDIA_API_KEY is not set." });
+  if (!aiConfigured(env)) return json({ ok: false, error: "No AI provider: add the Workers AI binding or NVIDIA_API_KEY." });
   if (env.EXPLAIN_LIMITER) {
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
     const { success } = await env.EXPLAIN_LIMITER.limit({ key: ip });
     if (!success) return errorResponse(429, "rate_limited", "Too many requests. Please wait a minute and try again.");
   }
-  const reasoning = env.NVIDIA_REASONING !== "off";
-  const writerModels = modelList(env);
-  const { messages, model, ...sent } = requestBody(buildMessages(AI_CHECK_WORD), env, writerModels[0], reasoning);
   const settings = {
     test_word: AI_CHECK_WORD,
-    writer_models: writerModels,
-    reviewer_models: env.NVIDIA_REVIEW === "off" ? "off" : modelList(env, "NVIDIA_REVIEW_MODEL"),
-    settings_sent: sent,
+    temperature: 0,
+    writer_models: modelList(env),
+    reviewer_models: env.AI_REVIEW === "off" ? "off" : modelList(env, "REVIEWER_MODELS"),
+    providers: { workers_ai: Boolean(env.AI), nvidia: Boolean(env.NVIDIA_API_KEY) },
   };
   // Every model call, in order, with how it went: shows which models are slow or failing.
   const attempts = [];
@@ -203,7 +201,7 @@ export default {
     if (pathname === "/api/health/ai") return handleAiCheck(request, env);
     if (pathname === "/api/health") {
       return json({
-        ai: Boolean(env.NVIDIA_API_KEY),
+        ai: aiConfigured(env),
         glossary: supabaseConfigured(env),
         temperature: 0,
         prompt_version: PROMPT_VERSION,

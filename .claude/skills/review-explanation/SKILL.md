@@ -1,6 +1,6 @@
 ---
 name: review-explanation
-description: Grade a Plainly answer (a plain-English explanation of a medical phrase) against the site's five rules (no causes, reading grade 6 or below, correct word roots, no personal details, care-team questions) and say exactly what to fix. Use this whenever someone pastes or screenshots an answer from the site or /api/explain, asks whether an explanation is good, too hard to read, or "giving medical advice", compares answers from two models, or is about to change src/prompt.js or the NVIDIA model and wants to check output quality.
+description: Grade a Plainly answer (a plain-English explanation of a medical phrase) against the site's five rules (no causes, reading grade 6 or below, correct word roots, no personal details, care-team questions) and say exactly what to fix. Use this whenever someone pastes or screenshots an answer from the site or /api/explain, asks whether an explanation is good, too hard to read, or "giving medical advice", compares answers from two models, or is about to change src/prompt.js or the AI models and wants to check output quality.
 ---
 
 # Review a Plainly explanation

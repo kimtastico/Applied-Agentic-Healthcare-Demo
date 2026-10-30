@@ -1,6 +1,6 @@
 // Bump PROMPT_VERSION whenever the writer or reviewer prompts, examples, or model settings
 // change, so explanations cached in Supabase under the old setup are regenerated.
-export const PROMPT_VERSION = 8;
+export const PROMPT_VERSION = 9;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 

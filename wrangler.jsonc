@@ -11,21 +11,26 @@
     "run_worker_first": ["/api/*"]
   },
 
-  // Non-secret settings. Secrets (NVIDIA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY)
-  // are set with `npx wrangler secret put <NAME>`, or in .dev.vars for local dev.
+  // Workers AI: Cloudflare-hosted models, free on the Workers Free plan up to a daily
+  // allowance (requests fail, never bill, once it's used up).
+  "ai": { "binding": "AI" },
+
+  // Non-secret settings. Secrets (SUPABASE_URL, SUPABASE_SERVICE_KEY, and the optional
+  // NVIDIA_API_KEY) are set with `npx wrangler secret put <NAME>`, or in .dev.vars locally.
   "vars": {
-    // Tried in order: if a model is overloaded, retired, or missing, the next one answers.
-    "NVIDIA_MODEL": "nvidia/nemotron-3-ultra-550b-a55b, deepseek-ai/deepseek-v4.1-flash, nvidia/nemotron-3.5-lightning-30b-a3b",
-    // "on" = the model thinks before answering (follows the rules better);
-    // "off" = faster answers. To cap thinking on models that support it (not Ultra),
-    // add "NVIDIA_REASONING_BUDGET": "1024".
-    "NVIDIA_REASONING": "off",
+    // Tried in order. "@cf/..." models run on Workers AI; others on NVIDIA's free API,
+    // kept as a backup because it is often overloaded.
+    "WRITER_MODELS": "@cf/meta/llama-3.3-70b-instruct-fp8-fast, nvidia/nemotron-3-ultra-550b-a55b, nvidia/nemotron-3.5-lightning-30b-a3b",
+    // Only strong models review: a weak reviewer over-corrects and can make answers worse.
+    // A different model family from the writer catches more of the writer's mistakes.
+    // If none is available, the answer is shown as "Not yet reviewed" and not saved.
+    "REVIEWER_MODELS": "@cf/openai/gpt-oss-120b, nvidia/nemotron-3-ultra-550b-a55b",
     // "on" = a second AI call reviews each new answer against the site's rules and
     // corrects it if needed (slower first search, safer answers); "off" = writer only.
-    "NVIDIA_REVIEW": "on",
-    // Only strong models review: a weak reviewer over-corrects and can make answers worse.
-    // If none of these is available, the answer is shown as "Not yet reviewed" and not saved.
-    "NVIDIA_REVIEW_MODEL": "nvidia/nemotron-3-ultra-550b-a55b, deepseek-ai/deepseek-v4.1-flash",
+    "AI_REVIEW": "on",
+    // NVIDIA models only: "on" = think before answering; "off" = faster. To cap thinking on
+    // NVIDIA models that support it (not Ultra), add "NVIDIA_REASONING_BUDGET": "1024".
+    "NVIDIA_REASONING": "off",
     "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1"
   },
 

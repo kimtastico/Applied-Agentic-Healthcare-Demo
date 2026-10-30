@@ -1,4 +1,4 @@
-// Fixed answers used only when NVIDIA_API_KEY is not set, so the site can be
+// Fixed answers used only when no AI provider is set up, so the site can be
 // previewed and deployed before the AI is connected.
 
 export const DEMO_EXPLANATIONS = {

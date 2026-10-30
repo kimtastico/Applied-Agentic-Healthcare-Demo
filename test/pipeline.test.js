@@ -4,7 +4,7 @@ import { explainAndReview } from "../src/pipeline.js";
 import { mechanicalChecks } from "../src/lib.js";
 import { REVIEW_PROMPT } from "../src/prompt.js";
 
-const ENV = { NVIDIA_API_KEY: "k", NVIDIA_MODEL: "writer-model", NVIDIA_REASONING: "off" };
+const ENV = { NVIDIA_API_KEY: "k", WRITER_MODELS: "writer-model", NVIDIA_REASONING: "off" };
 
 const draft = {
   understood: true,
@@ -70,7 +70,7 @@ test("reviewer finds problems but gives no usable correction", async () => {
 
 test("reviewer outage returns the draft as unreviewed instead of failing", async () => {
   fakeNvidia({ reviewer: () => new Response('{"error":"Service temporarily overloaded"}', { status: 503 }) });
-  const { result, review } = await explainAndReview("atelectasis", { ...ENV, NVIDIA_RETRY_PAUSE_MS: "10" });
+  const { result, review } = await explainAndReview("atelectasis", { ...ENV, RETRY_PAUSE_MS: "10" });
   assert.equal(review.status, "skipped");
   assert.equal(result.explanation, draft.explanation);
 });
@@ -84,13 +84,13 @@ test("personal details flagged by either model are kept", async () => {
   assert.equal(result.has_personal_info, true);
 });
 
-test("not-understood input and NVIDIA_REVIEW=off skip the reviewer", async () => {
+test("not-understood input and AI_REVIEW=off skip the reviewer", async () => {
   let calls = fakeNvidia({ writer: { understood: false, explanation: "Not a medical phrase." }, reviewer: {} });
   assert.equal((await explainAndReview("banana bread", ENV)).review.status, "not_needed");
   assert.equal(calls.length, 1);
 
   calls = fakeNvidia({ reviewer: {} });
-  assert.equal((await explainAndReview("atelectasis", { ...ENV, NVIDIA_REVIEW: "off" })).review.status, "skipped");
+  assert.equal((await explainAndReview("atelectasis", { ...ENV, AI_REVIEW: "off" })).review.status, "skipped");
   assert.equal(calls.length, 1);
 });
 
@@ -122,7 +122,7 @@ test("a stalled model times out and the next model answers", async () => {
     const isReview = body.messages[0].content === REVIEW_PROMPT;
     return reply(isReview ? { passed: true, problems: [], revised: null } : fixed);
   };
-  const env = { ...ENV, NVIDIA_MODEL: "slow-model, fast-model", NVIDIA_TIMEOUT_SECONDS: "0.05" };
+  const env = { ...ENV, WRITER_MODELS: "slow-model, fast-model", MODEL_TIMEOUT_SECONDS: "0.05" };
   const { result, review } = await explainAndReview("atelectasis", env);
   assert.equal(result.model, "fast-model");
   assert.equal(review.status, "passed");
@@ -138,7 +138,7 @@ test("when the writer uses up the time budget, the draft comes back unreviewed",
     return reply(fixed);
   };
   // 0.5s total budget: enough for the writer, less than the 10s a review needs.
-  const { result, review } = await explainAndReview("atelectasis", { ...ENV, NVIDIA_TOTAL_SECONDS: "0.5" });
+  const { result, review } = await explainAndReview("atelectasis", { ...ENV, ANSWER_TIMEOUT_SECONDS: "0.5" });
   assert.equal(review.status, "skipped");
   assert.equal(result.explanation, fixed.explanation);
   assert.equal(calls, 1);
@@ -146,7 +146,7 @@ test("when the writer uses up the time budget, the draft comes back unreviewed",
 
 test("all models stalled gives a clear timeout error", async () => {
   globalThis.fetch = async (_url, init) => stall(init);
-  const env = { ...ENV, NVIDIA_MODEL: "a, b", NVIDIA_TIMEOUT_SECONDS: "0.05" };
+  const env = { ...ENV, WRITER_MODELS: "a, b", MODEL_TIMEOUT_SECONDS: "0.05" };
   await assert.rejects(explainAndReview("atelectasis", env), /b: no answer within 0s/);
 });
 
@@ -160,7 +160,7 @@ test("a weak writer fallback never reviews: reviewer list is separate, failed mo
     return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
   };
   const attempts = [];
-  const env = { ...ENV, NVIDIA_MODEL: "strong, weak", NVIDIA_REVIEW_MODEL: "strong", NVIDIA_RETRY_PAUSE_MS: "10" };
+  const env = { ...ENV, WRITER_MODELS: "strong, weak", REVIEWER_MODELS: "strong", RETRY_PAUSE_MS: "10" };
   const { result, review } = await explainAndReview("atelectasis", env, attempts);
   assert.equal(result.model, "weak");
   // "strong" already failed for the writer and "weak" isn't a reviewer, so no review runs.
@@ -181,7 +181,7 @@ test("the reviewer uses its own model list", async () => {
     tried.push(`${role}:${body.model}`);
     return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
   };
-  const env = { ...ENV, NVIDIA_MODEL: "fast-writer", NVIDIA_REVIEW_MODEL: "careful-reviewer" };
+  const env = { ...ENV, WRITER_MODELS: "fast-writer", REVIEWER_MODELS: "careful-reviewer" };
   const { review } = await explainAndReview("atelectasis", env);
   assert.equal(review.status, "passed");
   assert.deepEqual(tried, ["writer:fast-writer", "reviewer:careful-reviewer"]);
@@ -200,7 +200,7 @@ test("an overloaded model is retried once, then reused by the reviewer", async (
     return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
   };
   const attempts = [];
-  const env = { ...ENV, NVIDIA_MODEL: "ultra, backup", NVIDIA_REVIEW_MODEL: "ultra", NVIDIA_RETRY_PAUSE_MS: "10" };
+  const env = { ...ENV, WRITER_MODELS: "ultra, backup", REVIEWER_MODELS: "ultra", RETRY_PAUSE_MS: "10" };
   const { result, review } = await explainAndReview("atelectasis", env, attempts);
   assert.equal(result.model, "ultra");
   assert.equal(review.status, "passed");
@@ -217,8 +217,94 @@ test("a model still overloaded after its retry falls back to the next", async ()
     if (body.model === "ultra") return new Response('{"error":"overloaded"}', { status: 503 });
     return reply(fixed);
   };
-  const env = { ...ENV, NVIDIA_MODEL: "ultra, backup", NVIDIA_REVIEW: "off", NVIDIA_RETRY_PAUSE_MS: "10" };
+  const env = { ...ENV, WRITER_MODELS: "ultra, backup", AI_REVIEW: "off", RETRY_PAUSE_MS: "10" };
   const { result } = await explainAndReview("atelectasis", env);
   assert.equal(result.model, "backup");
   assert.deepEqual(tried, ["ultra", "ultra", "backup"]);
+});
+
+// --- Cloudflare Workers AI ---------------------------------------------------------
+
+const LLAMA = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const GPT_OSS = "@cf/openai/gpt-oss-120b";
+
+// Fake Workers AI binding: Llama-style models return { response: string };
+// gpt-oss returns an OpenAI-style { choices: [...] }.
+function fakeWorkersAi(handlers) {
+  const runs = [];
+  const AI = {
+    async run(model, input) {
+      runs.push({ model, input });
+      return handlers[model](input);
+    },
+  };
+  return { AI, runs };
+}
+const llamaReply = (obj) => ({ response: JSON.stringify(obj) });
+const gptOssReply = (obj) => ({ choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.stringify(obj) } }] });
+
+test("Workers AI: Llama writes, gpt-oss reviews and corrects", async () => {
+  const problems = [{ rule: 1, issue: 'Names a cause: "after surgery"' }];
+  const { AI, runs } = fakeWorkersAi({
+    [LLAMA]: () => llamaReply(draft),
+    [GPT_OSS]: () => gptOssReply({ passed: false, problems, revised: fixed }),
+  });
+  const env = { AI, WRITER_MODELS: LLAMA, REVIEWER_MODELS: GPT_OSS };
+  const { result, review } = await explainAndReview("atelectasis", env);
+
+  assert.equal(result.model, LLAMA);
+  assert.equal(result.explanation, fixed.explanation);
+  assert.equal(review.status, "revised");
+  assert.deepEqual(runs.map((r) => r.model), [LLAMA, GPT_OSS]);
+  // Temperature 0 and room for the whole JSON answer (Workers AI defaults to 256 tokens).
+  assert.equal(runs[0].input.temperature, 0);
+  assert.equal(runs[0].input.max_tokens, 1024);
+  assert.equal(runs[0].input.messages[0].role, "system");
+  assert.equal(runs[0].input.reasoning_effort, undefined);
+  // gpt-oss always reasons; keep it quick.
+  assert.equal(runs[1].input.temperature, 0);
+  assert.equal(runs[1].input.reasoning_effort, "low");
+  assert.equal(runs[1].input.messages[0].content, REVIEW_PROMPT);
+});
+
+test("Workers AI: a JSON-mode object response is accepted", async () => {
+  const { AI } = fakeWorkersAi({ [LLAMA]: () => ({ response: fixed }) });
+  const { result } = await explainAndReview("atelectasis", { AI, WRITER_MODELS: LLAMA, AI_REVIEW: "off" });
+  assert.equal(result.explanation, fixed.explanation);
+});
+
+test("Workers AI out of daily allowance falls back to NVIDIA", async () => {
+  const { AI } = fakeWorkersAi({
+    [LLAMA]: () => {
+      throw new Error("AiError: 4006: you have used up your daily free allocation of 10,000 neurons");
+    },
+  });
+  fakeNvidia({ writer: fixed, reviewer: { passed: true, problems: [], revised: null } });
+  const attempts = [];
+  const env = { ...ENV, AI, WRITER_MODELS: `${LLAMA}, nvidia/ultra`, REVIEWER_MODELS: "nvidia/ultra" };
+  const { result, review } = await explainAndReview("atelectasis", env, attempts);
+  assert.equal(result.model, "nvidia/ultra");
+  assert.equal(review.status, "passed");
+  assert.match(attempts[0].outcome, /daily free allocation/);
+});
+
+test("Workers AI: a stalled model times out and the next answers", async () => {
+  const { AI } = fakeWorkersAi({
+    [LLAMA]: () => new Promise((resolve) => setTimeout(() => resolve(llamaReply(draft)), 2000)),
+    [GPT_OSS]: () => gptOssReply(fixed),
+  });
+  const env = { AI, WRITER_MODELS: `${LLAMA}, ${GPT_OSS}`, AI_REVIEW: "off", MODEL_TIMEOUT_SECONDS: "0.05" };
+  const attempts = [];
+  const { result } = await explainAndReview("atelectasis", env, attempts);
+  assert.equal(result.model, GPT_OSS);
+  assert.equal(attempts[0].outcome, "no answer within 0s");
+});
+
+test("without the AI binding, @cf models are skipped and NVIDIA answers", async () => {
+  fakeNvidia({ writer: fixed });
+  const attempts = [];
+  const env = { ...ENV, WRITER_MODELS: `${LLAMA}, nvidia/ultra`, AI_REVIEW: "off" };
+  const { result } = await explainAndReview("atelectasis", env, attempts);
+  assert.equal(result.model, "nvidia/ultra");
+  assert.match(attempts[0].outcome, /binding \(AI\) is not configured/);
 });

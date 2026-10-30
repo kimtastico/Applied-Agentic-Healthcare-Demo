@@ -1,7 +1,8 @@
 # Copy to .dev.vars for local `npm run dev`. Never commit .dev.vars.
 # In production set these with `npx wrangler secret put <NAME>`.
 
-# NVIDIA API key from https://build.nvidia.com (leave blank to run in demo mode)
+# Optional backup AI: NVIDIA API key from https://build.nvidia.com.
+# The main AI is Cloudflare Workers AI, which needs no key (run `npx wrangler login`).
 NVIDIA_API_KEY=
 
 # Supabase project URL and a server-side key (service_role / sb_secret_...).
