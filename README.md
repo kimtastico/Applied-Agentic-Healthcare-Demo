@@ -26,8 +26,12 @@ Browser ──POST /api/explain──▶ Worker ──▶ Supabase: same term ca
 
 1. The phrase is normalized (lowercase, collapsed whitespace). If it's already a glossary term, the stored explanation is returned, so the same term always gets the same answer.
 2. Otherwise the **writer** model returns strict JSON: `understood`, a cleaned `term`, `has_personal_info`, `explanation`, `word_parts`, and `questions`.
-3. Code runs the checks a computer can do (`mechanicalChecks` in `src/lib.js`). The **reviewer** model then checks the draft against the five rules (no causes or advice, grade 6 or below, correct word roots, no personal details, care-team questions), using those results as leads. If it finds problems, its corrected version replaces the draft. The page shows "Checked by reviewer AI" or "Corrected by reviewer AI", and lists what was fixed.
-4. **Final check:** if the reviewer rewrote the answer, the code checks run once more on its version, because nobody else has checked that text. A correction that still sounds like a cause or advice, reads above grade 7, repeats the term as a word part, has personal details, or has no care-team questions is shown as "Issues flagged: not saved". Only answers the reviewer approved, or corrections that pass this check, are saved to the glossary, along with what the reviewer found. If the reviewer is unavailable, the visitor still gets the draft, marked "Not yet reviewed", and it isn't saved.
+3. Code runs the checks a computer can do (`mechanicalChecks` in `src/lib.js`). The **reviewer** model then checks the draft against the five rules (no causes or advice, grade 6 or below, correct word roots, no personal details, care-team questions), using those results as leads. If it finds problems, its corrected version replaces the draft.
+4. **Final check:** if the reviewer rewrote the answer, the code checks run once more on its version, because nobody else has checked that text. A correction fails if it still sounds like a cause or advice, reads above grade 7, repeats the term as a word part, has personal details, or has no care-team questions.
+   - **Visitors only ever see an answer the reviewer approved, or a correction that passed this check.** Every AI answer carries the same notice, "Written and checked by AI. It can make mistakes — your care team knows your situation.", whether the reviewer approved it or corrected it.
+   - **If the answer fails, or the reviewer can't run, no answer is shown.** Instead the visitor sees: "We couldn’t double-check an explanation for this phrase, so we’re not showing one. Please try again in a minute, or ask your care team what it means." A failed draft, and the reasons it failed, never reach visitors.
+   - **Admins see everything in the private `review_log` table:** each review's outcome (approved, corrected, failed, skipped), which rules the draft broke, the reviewer's notes, the models, and timing. The public can't read it, and if the input looked personal, only the outcome and rule numbers are kept.
+   - Only approved or passing answers are saved to the public glossary, with the review outcome but never the reviewer's notes.
 5. The Worker estimates the Flesch-Kincaid grade of the explanation and shows it to the user as a check on the 6th-grade target.
 6. In the background (`ctx.waitUntil`), the Worker calls the Supabase function `record_search` to count the term.
 
@@ -42,7 +46,7 @@ The writer and reviewer each make one AI call, so a term's first search takes ab
 
 - **Workers AI** (`@cf/...` models) runs inside Cloudflare through the `AI` binding. It needs no key, and it is free on the Workers Free plan up to a daily allowance. Once that's used up, requests fail rather than bill, and the next model in the list takes over.
 - **NVIDIA** (`integrate.api.nvidia.com`) is a free trial that is often overloaded, so it is the backup. It needs the `NVIDIA_API_KEY` secret.
-- **The reviewer is a different model family** (gpt-oss) from the writer (Llama), so it doesn't share the writer's blind spots. Only strong models review: a weak reviewer over-corrects and can make a good answer worse. If no strong reviewer is available, the answer is marked "Not yet reviewed" and isn't saved.
+- **The reviewer is a different model family** (gpt-oss) from the writer (Llama), so it doesn't share the writer's blind spots. Only strong models review: a weak reviewer over-corrects and can make a good answer worse. If no strong reviewer is available, no answer is shown (the gentle "couldn't double-check" note) and nothing is saved.
 - **Time limits:** each model gets 15 seconds (`MODEL_TIMEOUT_SECONDS`) before the next is tried. A 503 "overloaded" or 429 "rate-limited" answer gets one retry after a 1.5-second pause. Models that already failed in a request aren't tried again by the reviewer. The whole answer has a 55-second budget (`ANSWER_TIMEOUT_SECONDS`), and the review is skipped if the writer uses most of it.
 - **`/api/health/ai`** makes one test call and lists every model attempt and how it went.
 
@@ -61,6 +65,7 @@ Safeguards:
 - If the input contained a lab value (`potassium 5.8 mmol/L`), only `potassium` is counted. The explanation isn't cached because it may refer to that value.
 - Workers Logs keep only the Worker's own error messages, which never include user text (an echoed phrase is blanked out). Cloudflare's per-request invocation logs, which would record visitor IPs, are turned off in `wrangler.jsonc`. The rate limiter keys on IP, but only in Cloudflare's memory.
 - The UI tells users to leave out names, dates, and IDs, and shows a badge when a term was counted.
+- The private `review_log` table has no column for the visitor either. Server logs record rule numbers only, never draft text.
 
 ## Project layout
 
@@ -73,7 +78,8 @@ src/prompt.js      writer and reviewer prompts, worked examples, PROMPT_VERSION
 src/supabase.js    fetch-based PostgREST client
 src/lib.js         pure helpers: normalization, privacy filters, JSON parsing, readability
 src/demo.js        built-in answers for demo mode
-supabase/migrations/0001_glossary.sql   table, RLS, record_search()
+supabase/migrations/0001_glossary.sql   public glossary table, RLS, record_search()
+supabase/migrations/0002_review_log.sql private review_log table for admins (no public access)
 test/              unit tests (node --test), including the writer/reviewer pipeline
 presentation/      class deck (plainly-deck.pptx) and the script that builds it: cd presentation && npm install && npm run build
 .claude/           Claude Code project skill (review-explanation) and subagent (explanation-reviewer)
@@ -105,7 +111,7 @@ To change models, edit `WRITER_MODELS` and `REVIEWER_MODELS` in `wrangler.jsonc`
 
 ### 3. Connect Supabase
 
-1. Create a project and run `supabase/migrations/0001_glossary.sql` in the SQL editor (or `supabase db push`).
+1. Create a project and run `supabase/migrations/0001_glossary.sql`, then `supabase/migrations/0002_review_log.sql`, in the SQL editor (or `supabase db push`). Admins read `review_log` in the Table Editor.
 2. In `.dev.vars`, set `SUPABASE_URL` and `SUPABASE_SERVICE_KEY` to a **secret / service_role** key. Only the Worker ever sees it. Row-level security lets anyone read the glossary, but only `record_search` (service role only) can write to it.
 
 ### 4. Deploy to Cloudflare

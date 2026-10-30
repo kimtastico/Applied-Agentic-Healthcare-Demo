@@ -67,3 +67,14 @@ export async function topTerms(env, promptVersion, limit = 50) {
     summary: r.prompt_version === promptVersion ? (r.explanation?.explanation ?? null) : null,
   }));
 }
+
+/** Add one row to the private review_log table (admins only; the public can't read it). */
+export async function insertReviewLog(env, row) {
+  const res = await fetch(restUrl(env, "review_log"), {
+    method: "POST",
+    headers: { ...headers(env), Prefer: "return=minimal" },
+    body: JSON.stringify(row),
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!res.ok) throw new Error(`Supabase review_log insert failed: HTTP ${res.status}`);
+}

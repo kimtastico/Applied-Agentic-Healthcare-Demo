@@ -66,7 +66,8 @@ export async function explainAndReview(phrase, env, attempts = []) {
     verdict = await reviewWithModel(phrase, draft, mechanicalChecks(draft), env, deadline, attempts);
   } catch (err) {
     // The draft is still a reasonable answer; show it, but don't save it as reviewed.
-    console.error(`Reviewer failed, returning unreviewed draft: ${err.message}`);
+    // The reply excerpt stays out of the logs: it can quote the draft.
+    console.error(`Reviewer failed, returning unreviewed draft: ${err.message.split("; reply began")[0]}`);
     return { result: draft, review: { status: "skipped", problems: [], reason: err.message.slice(0, 200) } };
   }
 
@@ -83,7 +84,7 @@ export async function explainAndReview(phrase, env, attempts = []) {
   };
   const finalProblems = finalCheckProblems(result);
   if (finalProblems.length) {
-    console.warn(`Reviewer's correction failed the final check: ${finalProblems.map((p) => p.issue).join("; ")}`);
+    console.warn(`Reviewer's correction failed the final check (rules ${finalProblems.map((p) => p.rule).join(", ")})`);
     return { result, review: { status: "unresolved", problems: [...verdict.problems, ...finalProblems] } };
   }
   return { result, review: { status: "revised", problems: verdict.problems } };

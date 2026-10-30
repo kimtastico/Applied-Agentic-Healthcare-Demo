@@ -28,21 +28,20 @@ function showMessage(kind, text) {
   resultEl.replaceChildren(el("div", { class: "card", role: kind === "error" ? "alert" : "status" }, el("p", {}, text)));
 }
 
+// AI answers (fresh or from the glossary) always get the same plain notice, whether the
+// reviewer approved the draft or corrected it: that detail is for admins, not visitors.
+const AI_NOTICE = "Written and checked by AI. It can make mistakes — your care team knows your situation.";
 const SOURCE_LABELS = {
-  ai: "Written by AI",
   glossary: "From the glossary",
   demo: "Demo example",
 };
 
-// What the reviewer model did with the writer's draft.
-const REVIEW_LABELS = {
-  passed: "Checked by reviewer AI",
-  revised: "Corrected by reviewer AI",
-  unresolved: "Issues flagged: not saved",
-  skipped: "Not yet reviewed",
-};
-
 function showResult(data) {
+  // The reviewer couldn't approve an answer (or couldn't run): show the gentle note, never a draft.
+  if (data.unavailable) {
+    showMessage("unclear", data.message);
+    return;
+  }
   if (!data.understood) {
     showMessage("unclear", data.explanation || "We couldn't tell what that phrase means. Try copying just the medical words.");
     return;
@@ -69,31 +68,17 @@ function showResult(data) {
     );
   }
 
-  const meta = el("div", { class: "meta" }, el("span", { class: "badge" }, SOURCE_LABELS[data.source] ?? data.source));
+  if (data.source !== "demo") card.append(el("p", { class: "ai-notice" }, AI_NOTICE));
+
+  const meta = el("div", { class: "meta" });
+  if (SOURCE_LABELS[data.source]) meta.append(el("span", { class: "badge" }, SOURCE_LABELS[data.source]));
   if (data.reading_grade != null) {
     const grade = Math.round(data.reading_grade);
     const label = grade < 1 ? "Reading level: below grade 1" : `Reading level ≈ grade ${grade}`;
     meta.append(el("span", { class: "badge", title: "Flesch-Kincaid estimate" }, label));
   }
-  const reviewLabel = REVIEW_LABELS[data.review?.status];
-  if (reviewLabel) {
-    // Hovering "Not yet reviewed" shows why (e.g. the reviewer model was unavailable).
-    const attrs = data.review.reason ? { class: "badge", title: `Why: ${data.review.reason}` } : { class: "badge" };
-    meta.append(el("span", attrs, reviewLabel));
-  }
   if (data.logged) meta.append(el("span", { class: "badge" }, "Counted in public glossary"));
   card.append(meta);
-
-  // Show what the reviewer caught, so readers can see the check at work.
-  if (data.review?.problems?.length) {
-    const heading = data.review.status === "revised" ? "What the reviewer fixed" : "What the reviewer flagged";
-    card.append(
-      el("details", { class: "review" },
-        el("summary", {}, heading),
-        el("ul", {}, ...data.review.problems.map((p) => el("li", {}, p.issue))),
-      ),
-    );
-  }
 
   resultEl.hidden = false;
   resultEl.className = "result";
@@ -103,7 +88,7 @@ function showResult(data) {
 async function explain(phrase) {
   submit.disabled = true;
   submit.textContent = "Explaining…";
-  showMessage("loading", "Looking that up… A writer AI drafts the answer and a reviewer AI checks it. The first time someone asks, this can take up to a minute.");
+  showMessage("loading", "Looking that up… One AI writes the answer and another checks it. The first time someone asks, this can take up to a minute.");
   try {
     const res = await fetch("/api/explain", {
       method: "POST",

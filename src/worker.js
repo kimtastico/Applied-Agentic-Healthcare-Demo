@@ -8,7 +8,8 @@ import {
 import { PROMPT_VERSION } from "./prompt.js";
 import { aiConfigured, modelList } from "./models.js";
 import { explainAndReview } from "./pipeline.js";
-import { getCachedExplanation, recordSearch, supabaseConfigured, topTerms } from "./supabase.js";
+import { getCachedExplanation, insertReviewLog, recordSearch, supabaseConfigured, topTerms } from "./supabase.js";
+import { reviewLogEntry } from "./reviewlog.js";
 import { DEMO_EXPLANATIONS } from "./demo.js";
 
 const GLOSSARY_CACHE_SECONDS = 60;
@@ -27,7 +28,15 @@ function json(body, status = 200, extraHeaders = {}) {
 
 const errorResponse = (status, error, message) => json({ error, message }, status);
 
-function present(result, source, logged, review = result.review) {
+// Shown instead of an answer when the reviewer couldn't approve one (or couldn't run).
+// Visitors never see a draft that failed review, or the reasons it failed.
+const UNAVAILABLE_MESSAGE =
+  "We couldn’t double-check an explanation for this phrase, so we’re not showing one. " +
+  "Please try again in a minute, or ask your care team what it means.";
+
+// Only what a visitor should see. Whether the reviewer approved or corrected an answer
+// is for admins (the private review_log table), not visitors.
+function present(result, source, logged) {
   return {
     term: result.term,
     understood: result.understood,
@@ -37,8 +46,6 @@ function present(result, source, logged, review = result.review) {
     reading_grade: result.understood ? fleschKincaidGrade(result.explanation) : null,
     source, // "ai" | "glossary" | "demo"
     logged, // whether the term was counted in the public glossary
-    // What the reviewer model did: passed, revised (with the problems it fixed), etc.
-    review: review ? { status: review.status, problems: review.problems ?? [], ...(review.reason && { reason: review.reason }) } : null,
   };
 }
 
@@ -102,28 +109,46 @@ async function handleExplain(request, env, ctx) {
 
   // 3. Writer drafts, reviewer checks (and corrects if needed).
   let result, review;
+  const attempts = [];
+  const started = Date.now();
   try {
-    ({ result, review } = await explainAndReview(phrase, env));
+    ({ result, review } = await explainAndReview(phrase, env, attempts));
   } catch (err) {
     console.error(err.message);
     return errorResponse(502, "upstream_error", "We couldn't get an explanation right now. Please try again.");
   }
 
-  if (!result.understood) return json(present(result, "ai", false, review));
+  // Every review goes to the private admin log, with the reviewer's notes unless personal.
+  if (supabaseConfigured(env)) {
+    const row = reviewLogEntry({
+      phrase, result, review, attempts, promptVersion: PROMPT_VERSION, seconds: (Date.now() - started) / 1000,
+    });
+    ctx.waitUntil(insertReviewLog(env, row).catch((err) => console.error(err.message)));
+  }
 
-  // Only store the explanation when it describes exactly the glossary term, has nothing
-  // personal, and the reviewer approved or corrected it; otherwise just count the term.
+  if (!result.understood) return json(present(result, "ai", false));
+
+  // Visitors only ever see an answer the reviewer approved, or a correction that passed the
+  // final check. Otherwise (it failed, or the reviewer couldn't run) they get a gentle note.
   const reviewed = review.status === "passed" || review.status === "revised";
-  const storeExplanation = result.term === key && keyIsTerm && !result.has_personal_info && reviewed;
+  if (!reviewed) {
+    const logged = logInBackground(ctx, env, { term: result.term });
+    return json({ unavailable: true, message: UNAVAILABLE_MESSAGE, logged });
+  }
+
+  // Only store the explanation when it describes exactly the glossary term and has nothing
+  // personal; otherwise just count the term. The public glossary keeps the review outcome
+  // only, never the reviewer's notes (those can quote the draft).
+  const storeExplanation = result.term === key && keyIsTerm && !result.has_personal_info;
   const { model, reasoning_used, ...answer } = result;
-  const stored = { ...answer, review };
+  const stored = { ...answer, review: { status: review.status } };
   const logged = logInBackground(ctx, env, {
     term: result.term,
     explanation: storeExplanation ? stored : null,
     model: storeExplanation ? model : null,
     promptVersion: storeExplanation ? PROMPT_VERSION : null,
   });
-  return json(present(result, "ai", logged, review));
+  return json(present(result, "ai", logged));
 }
 
 async function handleGlossary(request, env, ctx) {

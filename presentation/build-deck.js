@@ -242,7 +242,7 @@ function label(slide, name, x, y, w, text) {
   arrow(s, "Arrow reviewer to save", revCx, r1 + h1, revCx, r2);
   step(s, "Save", bx[2], r2, bw[2], h2, lines("Final check,", "then saved"));
   arrow(s, "Arrow save to answer", bx[2], mid2, bx[1] + bw[1], mid2);
-  step(s, "Answer", bx[1], r2, bw[1], h2, "Answer with review badge", { outcome: true });
+  step(s, "Answer", bx[1], r2, bw[1], h2, lines("Answer, with", "an AI notice"), { outcome: true });
   s.addNotes(
     "4. The writer AI (Llama 3.3 70B on Cloudflare Workers AI) drafts the explanation at temperature 0, " +
       "following worked examples.\n" +
@@ -254,9 +254,12 @@ function label(slide, name, x, y, w, text) {
       "7. Final check: if the reviewer rewrote the answer, the code checks run again on its version, because " +
       "nobody else has checked that text. Only answers that pass are saved, so no small problem gets locked into " +
       "the glossary. The next search for the term is then instant.\n" +
-      "8. The visitor sees the answer with a badge: “Checked by reviewer AI” or “Corrected by reviewer AI.”\n\n" +
-      "If the final check flags something, or the reviewer is unavailable, the answer is still shown, with a badge " +
-      "saying so, but it isn’t saved; the next search tries again.\n\n" +
+      "8. The visitor sees the answer with one plain notice: “Written and checked by AI. It can make mistakes — your " +
+      "care team knows your situation.” It’s the same whether the reviewer approved or corrected it: that detail is " +
+      "for admins.\n\n" +
+      "If the answer fails the review or the final check, or the reviewer can’t run, visitors see no answer at all, " +
+      "just a gentle note to try again or ask their care team. A failed draft, and why it failed, never reach visitors. " +
+      "Admins see every review — outcome, broken rules, the reviewer’s notes — in a private review_log table.\n\n" +
       "Source: project code, src/pipeline.js and src/models.js; README “How it works.”",
   );
 }
@@ -370,7 +373,7 @@ function label(slide, name, x, y, w, text) {
   s.addImage({
     path: path.join(__dirname, "assets", "demo-hyponatremia.png"),
     x: M, y: 1.55, w: imgW, h: imgH,
-    altText: "Plainly’s answer for hyponatremia, with the badges Written by AI, Reading level about grade 3, Checked by reviewer AI, and Counted in public glossary",
+    altText: "Plainly’s answer for hyponatremia, with its word-by-word breakdown, a care-team question, and its badges",
     objectName: "Demo screenshot",
   });
 
@@ -393,7 +396,8 @@ function label(slide, name, x, y, w, text) {
   );
   s.addNotes(
     "Live: " + SITE_URL + "\n\n" +
-      "1. Search “hyponatremia”: the writer drafts, the reviewer checks, about 5 seconds. Point out the badges.\n" +
+      "1. Search “hyponatremia”: the writer drafts, the reviewer checks, about 5 seconds. Point out the AI notice " +
+      "under the answer.\n" +
       "2. Search it again: instant, “From the glossary,” word for word the same.\n" +
       "3. Try “potassium 5.8 mmol/L”: it explains what the test measures and what the unit mmol/L means, " +
       "without ever saying what a normal number is, and only “potassium” is counted.\n" +
