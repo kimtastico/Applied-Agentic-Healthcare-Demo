@@ -310,29 +310,27 @@ function label(slide, name, x, y, w, text) {
     { ...body(), x: M, y: 1.45, w: W, h: 0.55, objectName: "Table name" },
   );
 
-  // Database columns run down the left; each sample is one row of the table.
-  const field = (text) => ({ text, options: { fontSize: BODY_PT, fontFace: MONO, color: C.text1 } });
+  // Laid out like the real table: column names across the top, one row per term.
+  const head = (text) => ({ text, options: { fontSize: BODY_PT, fontFace: MONO, bold: true, color: C.text1 } });
   const val = (text, extra = {}) => ({ text, options: { fontSize: BODY_PT, color: C.text1, ...extra } });
-  const head = (text) => ({ text, options: { fontSize: BODY_PT, color: C.text2, bold: true } });
   const rows = [
-    [head("column"), head("row 1"), head("row 2")],
-    [field("term"), val("hyponatremia", { bold: true }), val("potassium", { bold: true })],
-    [field("search_count"), val("3 (example)"), val("1 (example)")],
+    [head("term"), head("search_count"), head("explanation"), head("model")],
     [
-      field("explanation"),
+      val("hyponatremia"),
+      val("3 (example)"),
       {
         text: [
           { text: "“Less sodium in your blood…”", options: { color: C.text1, breakLine: true } },
-          { text: "Reviewed by AI", options: { color: C.accent1, bold: true } },
+          { text: "Reviewed", options: { color: C.accent1, bold: true } },
         ],
         options: { fontSize: BODY_PT },
       },
-      val("None: the input had a number"),
+      val("Llama 3.3\u00A070B"),
     ],
-    [field("model"), val("Llama 3.3 70B"), val("None")],
+    [val("potassium"), val("1 (example)"), val("None: the input had a number"), val("None")],
   ];
   s.addTable(rows, {
-    x: M, y: 2.15, w: W, colW: [3.5, 4.4, 4.23],
+    x: M, y: 2.15, w: W, colW: [3.05, 3.45, 3.38, 2.25],
     border: { type: "solid", pt: 1, color: HEX.lt2 },
     fill: { color: C.background1 }, margin: [0.06, 0.12, 0.06, 0.12], valign: "middle",
     objectName: "Sample rows",
@@ -342,7 +340,7 @@ function label(slide, name, x, y, w, text) {
       { text: "Never stored: ", options: { bold: true, color: C.accent2 } },
       { text: "who searched or what they typed" },
     ],
-    { ...body(), x: M, y: 6.5, w: W, h: 0.55, objectName: "Never stored" },
+    { ...body(), x: M, y: 5.95, w: W, h: 0.55, objectName: "Never stored" },
   );
   s.addNotes(
     "The whole database is one Supabase table, glossary_terms. Each row is one medical term: term, search_count, explanation " +
