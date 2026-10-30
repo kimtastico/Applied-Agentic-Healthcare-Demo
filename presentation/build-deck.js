@@ -240,7 +240,7 @@ function label(slide, name, x, y, w, text) {
   const r2 = 4.75, h2 = 1.7, mid2 = r2 + h2 / 2;
   const revCx = bx[2] + bw[2] / 2;
   arrow(s, "Arrow reviewer to save", revCx, r1 + h1, revCx, r2);
-  step(s, "Save", bx[2], r2, bw[2], h2, "Saved to the glossary");
+  step(s, "Save", bx[2], r2, bw[2], h2, lines("Final check,", "then saved"));
   arrow(s, "Arrow save to answer", bx[2], mid2, bx[1] + bw[1], mid2);
   step(s, "Answer", bx[1], r2, bw[1], h2, "Answer with review badge", { outcome: true });
   s.addNotes(
@@ -251,9 +251,12 @@ function label(slide, name, x, y, w, text) {
       "6. The reviewer AI (gpt-oss-120b) checks the draft against the five rules — no causes or advice, " +
       "grade 6 or below, correct word roots, no personal details, care-team questions — and approves it or " +
       "returns a corrected version.\n" +
-      "7. Only approved or corrected answers are saved, so the next search for the term is instant.\n" +
+      "7. Final check: if the reviewer rewrote the answer, the code checks run again on its version, because " +
+      "nobody else has checked that text. Only answers that pass are saved, so no small problem gets locked into " +
+      "the glossary. The next search for the term is then instant.\n" +
       "8. The visitor sees the answer with a badge: “Checked by reviewer AI” or “Corrected by reviewer AI.”\n\n" +
-      "If the reviewer is unavailable, the answer is still shown, marked “Not yet reviewed,” and isn’t saved.\n\n" +
+      "If the final check flags something, or the reviewer is unavailable, the answer is still shown, with a badge " +
+      "saying so, but it isn’t saved; the next search tries again.\n\n" +
       "Source: project code, src/pipeline.js and src/models.js; README “How it works.”",
   );
 }

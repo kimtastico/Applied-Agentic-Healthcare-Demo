@@ -327,3 +327,46 @@ test("a skipped review says why", async () => {
   assert.equal(review.status, "skipped");
   assert.match(review.reason, /finish_reason: length.*reply began: Let me check/);
 });
+
+// --- Final check on the reviewer's correction --------------------------------------
+
+test("a clean correction passes the final check and is marked revised", async () => {
+  fakeNvidia({ reviewer: { passed: false, problems: [{ rule: 1, issue: "Names a cause" }], revised: fixed } });
+  const { review } = await explainAndReview("atelectasis", ENV);
+  assert.equal(review.status, "revised");
+});
+
+test("a correction that still names a cause fails the final check and isn't saved", async () => {
+  const stillBad = { ...fixed, explanation: "Part of a lung has gone flat. This can happen after surgery." };
+  fakeNvidia({ reviewer: { passed: false, problems: [{ rule: 2, issue: "Too hard" }], revised: stillBad } });
+  const { result, review } = await explainAndReview("atelectasis", ENV);
+  // The visitor still sees the (better) correction, but the glossary won't keep it.
+  assert.equal(result.explanation, stillBad.explanation);
+  assert.equal(review.status, "unresolved");
+  assert.equal(review.problems[0].issue, "Too hard");
+  assert.match(review.problems[1].issue, /^Final check: .*cause or give advice \("can happen", "after surgery"\)/);
+});
+
+test("the final check catches a hard reading level, a repeated term, and missing questions", async () => {
+  const hard = {
+    ...fixed,
+    explanation: "Radiographic evaluation demonstrates bilateral pulmonary atelectasis with associated volume reduction.",
+    word_parts: [{ word: "atelectasis", meaning: "incomplete expansion" }],
+    questions: [],
+  };
+  fakeNvidia({ reviewer: { passed: false, problems: [], revised: hard } });
+  const { review } = await explainAndReview("atelectasis", ENV);
+  assert.equal(review.status, "unresolved");
+  const issues = review.problems.map((p) => p.issue).join(" | ");
+  assert.match(issues, /reads at about grade/);
+  assert.match(issues, /word part repeats the whole term/);
+  assert.match(issues, /no questions for the care team/);
+});
+
+test("an approved draft is not re-checked (the reviewer already judged the code's findings)", async () => {
+  // The code would flag "risk", but the reviewer saw that and approved the draft.
+  const approved = { ...fixed, explanation: "This test shows your risk of a blood clot." };
+  fakeNvidia({ writer: approved, reviewer: { passed: true, problems: [], revised: null } });
+  const { review } = await explainAndReview("d-dimer", ENV);
+  assert.equal(review.status, "passed");
+});

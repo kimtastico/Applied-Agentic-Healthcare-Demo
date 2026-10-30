@@ -38,7 +38,7 @@ const SOURCE_LABELS = {
 const REVIEW_LABELS = {
   passed: "Checked by reviewer AI",
   revised: "Corrected by reviewer AI",
-  unresolved: "Reviewer flagged issues",
+  unresolved: "Issues flagged: not saved",
   skipped: "Not yet reviewed",
 };
 
