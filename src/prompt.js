@@ -1,7 +1,7 @@
 // Bump PROMPT_VERSION whenever the writer or reviewer prompts, examples, model settings, or
 // the rules for what may be saved change, so explanations cached in Supabase under the old
 // setup are regenerated.
-export const PROMPT_VERSION = 12;
+export const PROMPT_VERSION = 13;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 
@@ -16,13 +16,17 @@ Accuracy:
 - Do not mention causes, risk factors, or situations where it happens, even common ones.
 - Do not diagnose, predict what will happen, or suggest tests or treatment. The care team will cover those.
 - If the input includes a lab number, explain what the test measures. Say that normal ranges differ between labs and the care team can say whether this number is normal. Do not judge the number yourself, and never give a normal range.
-- If the input includes a unit of measure, explain the unit as one of the word_parts, in plain words, without any numbers or ranges. Use these meanings:
-  - mmol/L = millimoles per liter: how much of a substance is in a liter of blood
-  - mg/dL = milligrams per deciliter: how much of a substance, by weight, is in a tenth of a liter of blood
-  - mEq/L = milliequivalents per liter: how much of a charged mineral, like sodium or potassium, is in a liter of blood
-  - g/dL = grams per deciliter: how many grams are in a tenth of a liter of blood
-  - U/L or IU/L = units per liter: how active an enzyme is in a liter of blood
-  - K/uL or x10^3/uL = thousands of cells in a microliter, a tiny drop of blood
+- If the input includes a unit of measure, spell out every part of it as its own word part, starting with the full name it stands for, without any numbers or ranges. Like the medical term, these full names are allowed even though they are long words. Use these meanings:
+  - "mmol" = millimoles: a very small amount, counted the way scientists count particles
+  - "mg" = milligrams: a very small weight, one thousandth of a gram
+  - "mEq" = milliequivalents: a very small amount of a charged mineral, like sodium or potassium
+  - "g" = grams: a small weight (a paper clip weighs about one gram)
+  - "U" or "IU" = units or international units: a measure of how active an enzyme is
+  - "K" = thousands
+  - "L" = liter: about a quart
+  - "dL" = deciliter: one tenth of a liter
+  - "uL" = microliter: a tiny drop
+  For example, "mmol/L" becomes two word parts: "mmol" = millimoles: a very small amount, counted the way scientists count particles; and "L" = liter: about a quart.
 - If the input is not a medical phrase, is unclear, or you are not sure what it means, set "understood" to false and give a one-sentence explanation of why.
 - Never invent facts. It is better to say less than to guess.
 - Simplify the words, never the facts. A simpler sentence must still be true: "sodium is a mineral found in salt", not "sodium is a type of salt".
@@ -31,7 +35,7 @@ Word parts:
 - Break medical words into their word roots, prefixes, and suffixes when that helps, like "cardio" = heart and "megaly" = bigger than normal.
 - Give each root only its own meaning: "leuko" = white (not "white blood cell"), "cyto" = cell, "osis" = a condition or increase.
 - Or explain each medical word in the phrase, like "bilateral" = on both sides.
-- Explain a unit of measure as a word part too, like "mmol/L" = millimoles per liter.
+- Spell out a unit of measure part by part too, like "mmol" = millimoles and "L" = liter.
 - Do not repeat the whole phrase. Do not explain everyday words like "lung" or "blood".
 - Every meaning must be correct. Leave word_parts empty rather than guess.
 
@@ -91,7 +95,10 @@ const EXAMPLES = [
       has_personal_info: false,
       explanation:
         "This test checks how much potassium is in your blood. Potassium helps your heart and muscles work. Normal ranges are a bit different at each lab. Your care team can tell you if your number is normal.",
-      word_parts: [{ word: "mmol/L", meaning: "millimoles per liter: how much potassium is in a liter of blood" }],
+      word_parts: [
+        { word: "mmol", meaning: "millimoles: a very small amount, counted the way scientists count particles" },
+        { word: "L", meaning: "liter: about a quart" },
+      ],
       questions: ["Is my potassium number something to worry about?"],
     },
   },
@@ -118,7 +125,7 @@ export const REVIEW_PROMPT = `You are a strict reviewer for Plainly, a site that
 
 1. No causes or advice. The explanation and word parts must only say what the phrase means. They fail if they mention causes, risk factors, or when it happens, even common ones. They also fail if they mention tests, treatment, what to do, what will happen, or reassurance like "not serious". For lab values, they fail if they call the number high, low, normal, or dangerous, or give a normal range. Questions are the exception: questions may ask about causes or treatment.
 2. Reading level at 6th grade or below. Short, common words. Sentences of 12 words or fewer. The medical term is named once, then plain words are used.
-3. Correct word parts. Each root gets only its own meaning: leuko = white (not "white blood cell"), cyto = cell, osis = a condition or increase, cardio = heart, megaly = bigger than normal, atelo = incomplete, ectasis = stretching open. The whole term must not be repeated as a part. Everyday words like "lung" must not be defined. Wrong meanings fail. An empty list is fine. Units of measure (mmol/L = millimoles per liter, mg/dL = milligrams per deciliter, mEq/L = milliequivalents per liter) may be explained as word parts, as long as no numbers or ranges are given.
+3. Correct word parts. Each root gets only its own meaning: leuko = white (not "white blood cell"), cyto = cell, osis = a condition or increase, cardio = heart, megaly = bigger than normal, atelo = incomplete, ectasis = stretching open. The whole term must not be repeated as a part. Everyday words like "lung" must not be defined. Wrong meanings fail. An empty list is fine. Units of measure must be spelled out part by part, each starting with the full name it stands for ("mmol" = millimoles, "L" = liter, "mg" = milligrams, "dL" = deciliter, "mEq" = milliequivalents), with no numbers or ranges. Never remove or shorten these full names to lower the reading level: like the medical term, they are allowed.
 4. No personal details. No names, dates, ID numbers, places, or details about a specific person anywhere. The term must be the general medical term.
 5. Care-team questions. 1 or 2 short questions the patient could ask their care team, worded as questions, not advice.
 Also check accuracy: the explanation must match the standard medical meaning. Simplifying the words is good, but a simpler statement must still be true. For example, "sodium is a type of salt" is wrong; "sodium is a mineral found in salt" is right.

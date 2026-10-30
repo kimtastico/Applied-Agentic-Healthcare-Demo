@@ -61,16 +61,19 @@ Each root gets only its own meaning. When a word combines roots, the full meanin
 
 ## Units on lab reports
 
-A unit explanation says what is being counted, never what a normal amount is.
+Each part of a unit is spelled out as its own word part, starting with its full name ("mmol/L" → "mmol" and "L"). A unit explanation says what is being counted, never what a normal amount is.
 
-| Unit | Means |
+| Part | Means |
 | --- | --- |
-| mmol/L | millimoles per liter: how much of a substance is in a liter of blood |
-| mg/dL | milligrams per deciliter: how much of a substance, by weight, is in a tenth of a liter of blood |
-| mEq/L | milliequivalents per liter: how much of a charged mineral, like sodium or potassium, is in a liter of blood |
-| g/dL | grams per deciliter: how many grams are in a tenth of a liter of blood |
-| U/L, IU/L | units per liter: how active an enzyme is in a liter of blood |
-| K/uL, x10^3/uL | thousands of cells in a microliter, a tiny drop of blood |
+| mmol | millimoles: a very small amount, counted the way scientists count particles |
+| mg | milligrams: a very small weight, one thousandth of a gram |
+| mEq | milliequivalents: a very small amount of a charged mineral, like sodium or potassium |
+| g | grams: a small weight (a paper clip weighs about one gram) |
+| U, IU | units, international units: a measure of how active an enzyme is |
+| K | thousands |
+| L | liter: about a quart |
+| dL | deciliter: one tenth of a liter |
+| uL | microliter: a tiny drop |
 
 ## Whole words that patients often see
 
