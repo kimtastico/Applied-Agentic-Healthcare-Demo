@@ -4,10 +4,14 @@ import { extractJson, sanitizeExplanation } from "./lib.js";
 const DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b";
 
-// Errors that come back fast and mean "this model can't serve this request right now"
-// (bad setting for this model, not found, retired, rate-limited, overloaded): worth
-// trying the next model. Key errors (401/403) are not: every model would fail.
-const FALLBACK_STATUSES = new Set([400, 404, 410, 422, 429, 500, 502, 503, 504]);
+// Errors that mean "this model can't serve this request right now" (bad setting for this
+// model, not found, retired, rate-limited, overloaded, too slow, unreachable): worth trying
+// the next model. Key errors (401/403) are not: every model would fail.
+const FALLBACK_STATUSES = new Set([400, 404, 410, 422, 429, 500, 502, 503, 504, "timeout", "network"]);
+
+// How long one model gets before the next one is tried. Free endpoints are shared and
+// can stall under load, so a slow model shouldn't hold up the whole answer.
+const DEFAULT_MODEL_TIMEOUT_SECONDS = 25;
 
 /** NVIDIA_MODEL may list several models, comma-separated, tried in order. */
 export function modelList(env) {
@@ -35,19 +39,28 @@ export function requestBody(messages, env, model, reasoning) {
   };
 }
 
-async function callNvidia(messages, phrase, env, model, reasoning) {
+async function callNvidia(messages, phrase, env, model, reasoning, timeoutMs) {
   const baseUrl = (env.NVIDIA_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.NVIDIA_API_KEY}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(requestBody(messages, env, model, reasoning)),
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (res.ok) return { res };
+  let res;
+  try {
+    res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.NVIDIA_API_KEY}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(requestBody(messages, env, model, reasoning)),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    // Read the body inside the try too: the timeout also covers a slow response body.
+    if (res.ok) return { data: await res.json() };
+  } catch (err) {
+    if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+      return { status: "timeout", detail: `no answer within ${Math.round(timeoutMs / 1000)}s` };
+    }
+    return { status: "network", detail: String(err?.message ?? err).slice(0, 200) };
+  }
 
   // Include NVIDIA's reason (e.g. an unsupported setting) so failures can be diagnosed
   // from the logs, but blank out the user's phrase in case the error echoes it.
@@ -61,25 +74,39 @@ async function callNvidia(messages, phrase, env, model, reasoning) {
  * models in order. `phrase` is the user's text, blanked out of any logged error.
  * temperature is pinned to 0: these are factual definitions, and creativity is a bug.
  */
-async function chat(messages, phrase, env) {
-  const models = modelList(env);
+async function chat(messages, phrase, env, deadline, startModel) {
+  // Skip models already known to be failing in this request: if the writer had to fall
+  // back past a stalled model, the reviewer starts where the writer succeeded.
+  const all = modelList(env);
+  const models = all.includes(startModel) ? all.slice(all.indexOf(startModel)) : all;
+  const perModelMs = (Number(env.NVIDIA_TIMEOUT_SECONDS) || DEFAULT_MODEL_TIMEOUT_SECONDS) * 1000;
+  // Each attempt gets the per-model limit, or whatever is left before the deadline.
+  const timeLeft = () => Math.min(perModelMs, deadline - Date.now());
+  const outOfTime = () => deadline - Date.now() < 250;
+  let lastError = "no models configured";
+
   for (const [i, model] of models.entries()) {
+    if (outOfTime()) throw new Error(`Out of time before trying ${model} (last: ${lastError})`);
     let reasoning = env.NVIDIA_REASONING !== "off";
-    let attempt = await callNvidia(messages, phrase, env, model, reasoning);
+    let attempt = await callNvidia(messages, phrase, env, model, reasoning, timeLeft());
 
     // Some NVIDIA servers reject thinking-related settings (Ultra: "thinking_token_budget
     // is not yet supported"). Rather than fail, retry once with reasoning off.
-    if (!attempt.res && reasoning && attempt.status === 400 && /think|reason/i.test(attempt.detail)) {
+    if (!attempt.data && reasoning && attempt.status === 400 && /think|reason/i.test(attempt.detail) && !outOfTime()) {
       console.warn(`${model}: reasoning rejected, retrying without it: ${attempt.detail}`);
       reasoning = false;
-      attempt = await callNvidia(messages, phrase, env, model, reasoning);
+      attempt = await callNvidia(messages, phrase, env, model, reasoning, timeLeft());
     }
-    if (attempt.res) {
-      const choice = (await attempt.res.json())?.choices?.[0];
+    if (attempt.data) {
+      const choice = attempt.data?.choices?.[0];
       return { content: choice?.message?.content, finishReason: choice?.finish_reason, model, reasoning };
     }
 
-    const error = `${model}: NVIDIA API returned HTTP ${attempt.status}: ${attempt.detail}`;
+    const error =
+      typeof attempt.status === "number"
+        ? `${model}: NVIDIA API returned HTTP ${attempt.status}: ${attempt.detail}`
+        : `${model}: ${attempt.detail}`;
+    lastError = error;
     if (i < models.length - 1 && FALLBACK_STATUSES.has(attempt.status)) {
       console.warn(`${error} (trying ${models[i + 1]})`);
       continue;
@@ -93,16 +120,16 @@ const notJson = (reply) =>
   new Error(`${reply.model}: reply was not valid JSON (finish_reason: ${reply.finishReason ?? "unknown"})`);
 
 /** Writer: draft a plain-English explanation of the phrase. */
-export async function explainWithNvidia(phrase, env) {
-  const reply = await chat(buildMessages(phrase), phrase, env);
+export async function explainWithNvidia(phrase, env, deadline = Date.now() + 55_000) {
+  const reply = await chat(buildMessages(phrase), phrase, env, deadline);
   const result = sanitizeExplanation(extractJson(reply.content));
   if (!result) throw notJson(reply);
   return { ...result, model: reply.model, reasoning_used: reply.reasoning };
 }
 
 /** Reviewer: check a draft against the rules; returns { passed, problems, revised }. */
-export async function reviewWithNvidia(phrase, draft, checks, env) {
-  const reply = await chat(buildReviewMessages(phrase, draft, checks), phrase, env);
+export async function reviewWithNvidia(phrase, draft, checks, env, deadline = Date.now() + 55_000) {
+  const reply = await chat(buildReviewMessages(phrase, draft, checks), phrase, env, deadline, draft.model);
   const raw = extractJson(reply.content);
   if (!raw || typeof raw.passed !== "boolean") throw notJson(reply);
   const problems = Array.isArray(raw.problems)

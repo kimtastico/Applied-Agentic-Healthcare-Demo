@@ -99,3 +99,51 @@ test("mechanicalChecks flags causes, repeated terms, and grade", () => {
   assert.equal(c.question_count, 1);
   assert.ok(mechanicalChecks(fixed).reading_grade_ok);
 });
+
+// A model that never answers: the request only ends when the site's timeout aborts it.
+// (Node's AbortSignal.timeout doesn't keep the test process alive, so hold it open.)
+const stall = (init) =>
+  new Promise((_, reject) => {
+    const keepAlive = setTimeout(() => {}, 10_000);
+    init.signal.addEventListener("abort", () => {
+      clearTimeout(keepAlive);
+      reject(init.signal.reason);
+    });
+  });
+
+test("a stalled model times out and the next model answers", async () => {
+  const tried = [];
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    tried.push(body.model);
+    if (body.model === "slow-model") return stall(init);
+    const isReview = body.messages[0].content === REVIEW_PROMPT;
+    return reply(isReview ? { passed: true, problems: [], revised: null } : fixed);
+  };
+  const env = { ...ENV, NVIDIA_MODEL: "slow-model, fast-model", NVIDIA_TIMEOUT_SECONDS: "0.05" };
+  const { result, review } = await explainAndReview("atelectasis", env);
+  assert.equal(result.model, "fast-model");
+  assert.equal(review.status, "passed");
+  // Writer: slow, then fast. Reviewer starts with the model that worked for the writer.
+  assert.deepEqual(tried, ["slow-model", "fast-model", "fast-model"]);
+});
+
+test("when the writer uses up the time budget, the draft comes back unreviewed", async () => {
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    await new Promise((r) => setTimeout(r, 80));
+    return reply(fixed);
+  };
+  // 0.5s total budget: enough for the writer, less than the 10s a review needs.
+  const { result, review } = await explainAndReview("atelectasis", { ...ENV, NVIDIA_TOTAL_SECONDS: "0.5" });
+  assert.equal(review.status, "skipped");
+  assert.equal(result.explanation, fixed.explanation);
+  assert.equal(calls, 1);
+});
+
+test("all models stalled gives a clear timeout error", async () => {
+  globalThis.fetch = async (_url, init) => stall(init);
+  const env = { ...ENV, NVIDIA_MODEL: "a, b", NVIDIA_TIMEOUT_SECONDS: "0.05" };
+  await assert.rejects(explainAndReview("atelectasis", env), /b: no answer within 0s/);
+});
