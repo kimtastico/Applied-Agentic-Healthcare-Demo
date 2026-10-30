@@ -38,7 +38,7 @@ function present(result, source, logged, review = result.review) {
     source, // "ai" | "glossary" | "demo"
     logged, // whether the term was counted in the public glossary
     // What the reviewer model did: passed, revised (with the problems it fixed), etc.
-    review: review ? { status: review.status, problems: review.problems ?? [] } : null,
+    review: review ? { status: review.status, problems: review.problems ?? [], ...(review.reason && { reason: review.reason }) } : null,
   };
 }
 
@@ -135,7 +135,7 @@ async function handleGlossary(request, env, ctx) {
   if (hit) return hit;
 
   try {
-    const terms = await topTerms(env, 50);
+    const terms = await topTerms(env, PROMPT_VERSION, 50);
     const res = json({ configured: true, terms }, 200, {
       "Cache-Control": `public, max-age=${GLOSSARY_CACHE_SECONDS}`,
     });
@@ -176,6 +176,7 @@ async function handleAiCheck(request, env) {
       seconds: (Date.now() - started) / 1000,
       model_used: result.model,
       review_status: review.status,
+      ...(review.reason && { review_skipped_because: review.reason }),
       answer: result.explanation,
       review_problems: review.problems,
       attempts,

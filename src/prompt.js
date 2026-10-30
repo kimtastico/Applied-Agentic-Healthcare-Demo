@@ -1,6 +1,6 @@
 // Bump PROMPT_VERSION whenever the writer or reviewer prompts, examples, or model settings
 // change, so explanations cached in Supabase under the old setup are regenerated.
-export const PROMPT_VERSION = 9;
+export const PROMPT_VERSION = 10;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 
@@ -17,6 +17,7 @@ Accuracy:
 - If the input includes a lab number, explain what the test measures. Say that normal ranges differ between labs and the care team can say whether this number is normal. Do not judge the number yourself.
 - If the input is not a medical phrase, is unclear, or you are not sure what it means, set "understood" to false and give a one-sentence explanation of why.
 - Never invent facts. It is better to say less than to guess.
+- Simplify the words, never the facts. A simpler sentence must still be true: "sodium is a mineral found in salt", not "sodium is a type of salt".
 
 Word parts:
 - Break medical words into their word roots, prefixes, and suffixes when that helps, like "cardio" = heart and "megaly" = bigger than normal.
@@ -111,7 +112,7 @@ export const REVIEW_PROMPT = `You are a strict reviewer for Plainly, a site that
 3. Correct word parts. Each root gets only its own meaning: leuko = white (not "white blood cell"), cyto = cell, osis = a condition or increase, cardio = heart, megaly = bigger than normal, atelo = incomplete, ectasis = stretching open. The whole term must not be repeated as a part. Everyday words like "lung" must not be defined. Wrong meanings fail. An empty list is fine.
 4. No personal details. No names, dates, ID numbers, places, or details about a specific person anywhere. The term must be the general medical term.
 5. Care-team questions. 1 or 2 short questions the patient could ask their care team, worded as questions, not advice.
-Also check accuracy: the explanation must match the standard medical meaning.
+Also check accuracy: the explanation must match the standard medical meaning. Simplifying the words is good, but a simpler statement must still be true. For example, "sodium is a type of salt" is wrong; "sodium is a mineral found in salt" is right.
 
 Only report clear violations of these rules. If you aren't sure something breaks a rule, it passes. A correct, plain answer passes even if you would word it differently, and a sentence that only describes what the term means is allowed. Never make an answer less accurate or remove correct information: fix only what breaks a rule.
 

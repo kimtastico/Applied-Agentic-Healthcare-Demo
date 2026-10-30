@@ -76,7 +76,11 @@ function showResult(data) {
     meta.append(el("span", { class: "badge", title: "Flesch-Kincaid estimate" }, label));
   }
   const reviewLabel = REVIEW_LABELS[data.review?.status];
-  if (reviewLabel) meta.append(el("span", { class: "badge" }, reviewLabel));
+  if (reviewLabel) {
+    // Hovering "Not yet reviewed" shows why (e.g. the reviewer model was unavailable).
+    const attrs = data.review.reason ? { class: "badge", title: `Why: ${data.review.reason}` } : { class: "badge" };
+    meta.append(el("span", attrs, reviewLabel));
+  }
   if (data.logged) meta.append(el("span", { class: "badge" }, "Counted in public glossary"));
   card.append(meta);
 

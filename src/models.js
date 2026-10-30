@@ -220,7 +220,14 @@ export async function reviewWithModel(phrase, draft, checks, env, deadline = Dat
     attempts,
   });
   const raw = extractJson(reply.content);
-  if (!raw || typeof raw.passed !== "boolean") throw notJson(reply);
+  // Accept "true"/"false" written as text, which some models do.
+  if (raw && typeof raw.passed === "string" && /^(true|false)$/i.test(raw.passed.trim())) {
+    raw.passed = raw.passed.trim().toLowerCase() === "true";
+  }
+  if (!raw || typeof raw.passed !== "boolean") {
+    // Include the start of the reply so a format problem can be diagnosed.
+    throw new Error(`${notJson(reply).message}; reply began: ${String(reply.content ?? "(empty)").slice(0, 80)}`);
+  }
   const problems = Array.isArray(raw.problems)
     ? raw.problems
         .map((p) => ({ rule: String(p?.rule ?? "").slice(0, 20), issue: String(p?.issue ?? "").trim().slice(0, 300) }))

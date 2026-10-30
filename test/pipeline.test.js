@@ -308,3 +308,22 @@ test("without the AI binding, @cf models are skipped and NVIDIA answers", async 
   assert.equal(result.model, "nvidia/ultra");
   assert.match(attempts[0].outcome, /binding \(AI\) is not configured/);
 });
+
+test('a reviewer verdict written as text ("true") is accepted', async () => {
+  const { AI } = fakeWorkersAi({
+    [LLAMA]: () => llamaReply(fixed),
+    [GPT_OSS]: () => gptOssReply({ passed: "true", problems: [], revised: null }),
+  });
+  const { review } = await explainAndReview("atelectasis", { AI, WRITER_MODELS: LLAMA, REVIEWER_MODELS: GPT_OSS });
+  assert.equal(review.status, "passed");
+});
+
+test("a skipped review says why", async () => {
+  const { AI } = fakeWorkersAi({
+    [LLAMA]: () => llamaReply(fixed),
+    [GPT_OSS]: () => ({ choices: [{ finish_reason: "length", message: { content: "Let me check the rules one by one" } }] }),
+  });
+  const { review } = await explainAndReview("atelectasis", { AI, WRITER_MODELS: LLAMA, REVIEWER_MODELS: GPT_OSS });
+  assert.equal(review.status, "skipped");
+  assert.match(review.reason, /finish_reason: length.*reply began: Let me check/);
+});

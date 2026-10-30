@@ -28,10 +28,10 @@ export async function explainAndReview(phrase, env, attempts = []) {
   const deadline = Date.now() + (Number(env.ANSWER_TIMEOUT_SECONDS) || DEFAULT_TOTAL_SECONDS) * 1000;
   const draft = await explainWithModel(phrase, env, deadline, attempts);
   if (!draft.understood) return { result: draft, review: { status: "not_needed", problems: [] } };
-  if (env.AI_REVIEW === "off") return { result: draft, review: { status: "skipped", problems: [] } };
+  if (env.AI_REVIEW === "off") return { result: draft, review: { status: "skipped", problems: [], reason: "review is turned off" } };
   if (deadline - Date.now() < MIN_REVIEW_SECONDS * 1000) {
     console.warn("Writer was slow; no time left to review, returning unreviewed draft");
-    return { result: draft, review: { status: "skipped", problems: [] } };
+    return { result: draft, review: { status: "skipped", problems: [], reason: "no time left to review" } };
   }
 
   let verdict;
@@ -40,7 +40,7 @@ export async function explainAndReview(phrase, env, attempts = []) {
   } catch (err) {
     // The draft is still a reasonable answer; show it, but don't save it as reviewed.
     console.error(`Reviewer failed, returning unreviewed draft: ${err.message}`);
-    return { result: draft, review: { status: "skipped", problems: [] } };
+    return { result: draft, review: { status: "skipped", problems: [], reason: err.message.slice(0, 200) } };
   }
 
   if (verdict.passed) return { result: draft, review: { status: "passed", problems: [] } };

@@ -49,11 +49,14 @@ export async function recordSearch(env, { term, explanation = null, model = null
   if (!res.ok) throw new Error(`Supabase record_search failed: HTTP ${res.status}`);
 }
 
-/** Most-searched terms for the public glossary. */
-export async function topTerms(env, limit = 50) {
+/**
+ * Most-searched terms for the public glossary. Summaries are shown only for answers
+ * written under the current prompt, so the list never shows an outdated explanation.
+ */
+export async function topTerms(env, promptVersion, limit = 50) {
   const url = restUrl(
     env,
-    `glossary_terms?select=term,search_count,explanation&order=search_count.desc,term.asc&limit=${limit}`,
+    `glossary_terms?select=term,search_count,explanation,prompt_version&order=search_count.desc,term.asc&limit=${limit}`,
   );
   const res = await fetch(url, { headers: headers(env), signal: AbortSignal.timeout(5_000) });
   if (!res.ok) throw new Error(`Supabase glossary query failed: HTTP ${res.status}`);
@@ -61,6 +64,6 @@ export async function topTerms(env, limit = 50) {
   return rows.map((r) => ({
     term: r.term,
     count: r.search_count,
-    summary: r.explanation?.explanation ?? null,
+    summary: r.prompt_version === promptVersion ? (r.explanation?.explanation ?? null) : null,
   }));
 }
