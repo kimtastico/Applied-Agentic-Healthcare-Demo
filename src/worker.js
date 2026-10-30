@@ -149,6 +149,9 @@ async function handleGlossary(request, env, ctx) {
 
 // Makes one real model call with a fixed test word (never user input) and reports
 // NVIDIA's exact error and timing, so problems can be diagnosed from a browser.
+// A test word that isn't one of the prompt's worked examples, so the writer can't copy one.
+const AI_CHECK_WORD = "hyponatremia";
+
 async function handleAiCheck(request, env) {
   if (!env.NVIDIA_API_KEY) return json({ ok: false, error: "NVIDIA_API_KEY is not set." });
   if (env.EXPLAIN_LIMITER) {
@@ -157,24 +160,31 @@ async function handleAiCheck(request, env) {
     if (!success) return errorResponse(429, "rate_limited", "Too many requests. Please wait a minute and try again.");
   }
   const reasoning = env.NVIDIA_REASONING !== "off";
-  const models = modelList(env);
-  const { messages, model, ...sent } = requestBody(buildMessages("cardiomegaly"), env, models[0], reasoning);
-  const settings = { test_word: "cardiomegaly", models_in_order: models, settings_sent: sent };
+  const writerModels = modelList(env);
+  const { messages, model, ...sent } = requestBody(buildMessages(AI_CHECK_WORD), env, writerModels[0], reasoning);
+  const settings = {
+    test_word: AI_CHECK_WORD,
+    writer_models: writerModels,
+    reviewer_models: env.NVIDIA_REVIEW === "off" ? "off" : modelList(env, "NVIDIA_REVIEW_MODEL"),
+    settings_sent: sent,
+  };
+  // Every model call, in order, with how it went: shows which models are slow or failing.
+  const attempts = [];
   const started = Date.now();
   try {
-    const { result, review } = await explainAndReview("cardiomegaly", env);
+    const { result, review } = await explainAndReview(AI_CHECK_WORD, env, attempts);
     return json({
       ok: true,
       seconds: (Date.now() - started) / 1000,
-      ...settings,
       model_used: result.model,
-      reasoning_used: result.reasoning_used,
       review_status: review.status,
-      review_problems: review.problems,
       answer: result.explanation,
+      review_problems: review.problems,
+      attempts,
+      ...settings,
     });
   } catch (err) {
-    return json({ ok: false, seconds: (Date.now() - started) / 1000, ...settings, error: err.message });
+    return json({ ok: false, seconds: (Date.now() - started) / 1000, error: err.message, attempts, ...settings });
   }
 }
 

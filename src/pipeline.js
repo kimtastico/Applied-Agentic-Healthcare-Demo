@@ -22,10 +22,11 @@ const MIN_REVIEW_SECONDS = 10;
  *   "not_needed" the writer didn't understand the phrase, so there is nothing to review
  *
  * Only "passed" and "revised" answers should be saved to the glossary.
+ * `attempts` collects every model call (role, model, outcome, seconds) for diagnostics.
  */
-export async function explainAndReview(phrase, env) {
+export async function explainAndReview(phrase, env, attempts = []) {
   const deadline = Date.now() + (Number(env.NVIDIA_TOTAL_SECONDS) || DEFAULT_TOTAL_SECONDS) * 1000;
-  const draft = await explainWithNvidia(phrase, env, deadline);
+  const draft = await explainWithNvidia(phrase, env, deadline, attempts);
   if (!draft.understood) return { result: draft, review: { status: "not_needed", problems: [] } };
   if (env.NVIDIA_REVIEW === "off") return { result: draft, review: { status: "skipped", problems: [] } };
   if (deadline - Date.now() < MIN_REVIEW_SECONDS * 1000) {
@@ -35,7 +36,7 @@ export async function explainAndReview(phrase, env) {
 
   let verdict;
   try {
-    verdict = await reviewWithNvidia(phrase, draft, mechanicalChecks(draft), env, deadline);
+    verdict = await reviewWithNvidia(phrase, draft, mechanicalChecks(draft), env, deadline, attempts);
   } catch (err) {
     // The draft is still a reasonable answer; show it, but don't save it as reviewed.
     console.error(`Reviewer failed, returning unreviewed draft: ${err.message}`);

@@ -23,6 +23,9 @@
     // "on" = a second AI call reviews each new answer against the site's rules and
     // corrects it if needed (slower first search, safer answers); "off" = writer only.
     "NVIDIA_REVIEW": "on",
+    // Only strong models review: a weak reviewer over-corrects and can make answers worse.
+    // If none of these is available, the answer is shown as "Not yet reviewed" and not saved.
+    "NVIDIA_REVIEW_MODEL": "nvidia/nemotron-3-ultra-550b-a55b, deepseek-ai/deepseek-v4.1-flash",
     "NVIDIA_BASE_URL": "https://integrate.api.nvidia.com/v1"
   },
 

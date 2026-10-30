@@ -13,9 +13,13 @@ const FALLBACK_STATUSES = new Set([400, 404, 410, 422, 429, 500, 502, 503, 504, 
 // can stall under load, so a slow model shouldn't hold up the whole answer.
 const DEFAULT_MODEL_TIMEOUT_SECONDS = 25;
 
-/** NVIDIA_MODEL may list several models, comma-separated, tried in order. */
-export function modelList(env) {
-  const models = (env.NVIDIA_MODEL || DEFAULT_MODEL).split(",").map((m) => m.trim()).filter(Boolean);
+/**
+ * NVIDIA_MODEL lists the writer's models, comma-separated, tried in order.
+ * NVIDIA_REVIEW_MODEL lists the reviewer's (defaults to the writer's list).
+ */
+export function modelList(env, key = "NVIDIA_MODEL") {
+  const raw = env[key] || env.NVIDIA_MODEL || DEFAULT_MODEL;
+  const models = raw.split(",").map((m) => m.trim()).filter(Boolean);
   return models.length ? models : [DEFAULT_MODEL];
 }
 
@@ -74,19 +78,21 @@ async function callNvidia(messages, phrase, env, model, reasoning, timeoutMs) {
  * models in order. `phrase` is the user's text, blanked out of any logged error.
  * temperature is pinned to 0: these are factual definitions, and creativity is a bug.
  */
-async function chat(messages, phrase, env, deadline, startModel) {
-  // Skip models already known to be failing in this request: if the writer had to fall
-  // back past a stalled model, the reviewer starts where the writer succeeded.
-  const all = modelList(env);
-  const models = all.includes(startModel) ? all.slice(all.indexOf(startModel)) : all;
+/**
+ * Try `models` in order. Every attempt is recorded in `attempts` (role, model, outcome,
+ * seconds) so /api/health/ai can show why a model was skipped.
+ */
+async function chat(messages, phrase, env, deadline, { role, models, attempts }) {
   const perModelMs = (Number(env.NVIDIA_TIMEOUT_SECONDS) || DEFAULT_MODEL_TIMEOUT_SECONDS) * 1000;
   // Each attempt gets the per-model limit, or whatever is left before the deadline.
   const timeLeft = () => Math.min(perModelMs, deadline - Date.now());
   const outOfTime = () => deadline - Date.now() < 250;
-  let lastError = "no models configured";
+  let lastError = "no models available";
 
   for (const [i, model] of models.entries()) {
     if (outOfTime()) throw new Error(`Out of time before trying ${model} (last: ${lastError})`);
+    const started = Date.now();
+    const record = (outcome) => attempts.push({ role, model, outcome, seconds: (Date.now() - started) / 1000 });
     let reasoning = env.NVIDIA_REASONING !== "off";
     let attempt = await callNvidia(messages, phrase, env, model, reasoning, timeLeft());
 
@@ -98,21 +104,21 @@ async function chat(messages, phrase, env, deadline, startModel) {
       attempt = await callNvidia(messages, phrase, env, model, reasoning, timeLeft());
     }
     if (attempt.data) {
+      record("ok");
       const choice = attempt.data?.choices?.[0];
       return { content: choice?.message?.content, finishReason: choice?.finish_reason, model, reasoning };
     }
 
-    const error =
-      typeof attempt.status === "number"
-        ? `${model}: NVIDIA API returned HTTP ${attempt.status}: ${attempt.detail}`
-        : `${model}: ${attempt.detail}`;
-    lastError = error;
+    const outcome = typeof attempt.status === "number" ? `HTTP ${attempt.status}: ${attempt.detail}` : attempt.detail;
+    record(outcome);
+    lastError = `${model}: ${outcome}`;
     if (i < models.length - 1 && FALLBACK_STATUSES.has(attempt.status)) {
-      console.warn(`${error} (trying ${models[i + 1]})`);
+      console.warn(`${lastError} (trying ${models[i + 1]})`);
       continue;
     }
-    throw new Error(error);
+    throw new Error(lastError);
   }
+  throw new Error(lastError);
 }
 
 // finish_reason "length" means thinking used up max_tokens before the answer.
@@ -120,16 +126,31 @@ const notJson = (reply) =>
   new Error(`${reply.model}: reply was not valid JSON (finish_reason: ${reply.finishReason ?? "unknown"})`);
 
 /** Writer: draft a plain-English explanation of the phrase. */
-export async function explainWithNvidia(phrase, env, deadline = Date.now() + 55_000) {
-  const reply = await chat(buildMessages(phrase), phrase, env, deadline);
+export async function explainWithNvidia(phrase, env, deadline = Date.now() + 55_000, attempts = []) {
+  const reply = await chat(buildMessages(phrase), phrase, env, deadline, {
+    role: "writer",
+    models: modelList(env),
+    attempts,
+  });
   const result = sanitizeExplanation(extractJson(reply.content));
   if (!result) throw notJson(reply);
   return { ...result, model: reply.model, reasoning_used: reply.reasoning };
 }
 
-/** Reviewer: check a draft against the rules; returns { passed, problems, revised }. */
-export async function reviewWithNvidia(phrase, draft, checks, env, deadline = Date.now() + 55_000) {
-  const reply = await chat(buildReviewMessages(phrase, draft, checks), phrase, env, deadline, draft.model);
+/**
+ * Reviewer: check a draft against the rules; returns { passed, problems, revised }.
+ * Only models on the reviewer list are used: a weak reviewer over-corrects and can make
+ * a good answer worse. Models that already failed in this request are skipped.
+ */
+export async function reviewWithNvidia(phrase, draft, checks, env, deadline = Date.now() + 55_000, attempts = []) {
+  const failed = new Set(attempts.filter((a) => a.outcome !== "ok").map((a) => a.model));
+  const models = modelList(env, "NVIDIA_REVIEW_MODEL").filter((m) => !failed.has(m));
+  if (!models.length) throw new Error("No reviewer model available (all failed earlier in this request)");
+  const reply = await chat(buildReviewMessages(phrase, draft, checks), phrase, env, deadline, {
+    role: "reviewer",
+    models,
+    attempts,
+  });
   const raw = extractJson(reply.content);
   if (!raw || typeof raw.passed !== "boolean") throw notJson(reply);
   const problems = Array.isArray(raw.problems)

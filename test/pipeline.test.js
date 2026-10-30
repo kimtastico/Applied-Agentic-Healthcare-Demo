@@ -57,6 +57,8 @@ test("reviewer corrects a draft that names causes", async () => {
   assert.match(sent, /Original input: """atelectasis"""/);
   assert.match(sent, /This can happen after surgery/);
   assert.match(sent, /"possible_cause_or_advice":\["can happen","after surgery"/);
+  // Clean checks are left out so the reviewer doesn't invent problems from them.
+  assert.doesNotMatch(sent, /possible_personal_details_in/);
 });
 
 test("reviewer finds problems but gives no usable correction", async () => {
@@ -146,4 +148,40 @@ test("all models stalled gives a clear timeout error", async () => {
   globalThis.fetch = async (_url, init) => stall(init);
   const env = { ...ENV, NVIDIA_MODEL: "a, b", NVIDIA_TIMEOUT_SECONDS: "0.05" };
   await assert.rejects(explainAndReview("atelectasis", env), /b: no answer within 0s/);
+});
+
+test("a weak writer fallback never reviews: reviewer list is separate, failed models are skipped", async () => {
+  const tried = [];
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const role = body.messages[0].content === REVIEW_PROMPT ? "reviewer" : "writer";
+    tried.push(`${role}:${body.model}`);
+    if (body.model === "strong") return new Response('{"error":"Service temporarily overloaded"}', { status: 503 });
+    return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
+  };
+  const attempts = [];
+  const env = { ...ENV, NVIDIA_MODEL: "strong, weak", NVIDIA_REVIEW_MODEL: "strong" };
+  const { result, review } = await explainAndReview("atelectasis", env, attempts);
+  assert.equal(result.model, "weak");
+  // "strong" already failed for the writer and "weak" isn't a reviewer, so no review runs.
+  assert.equal(review.status, "skipped");
+  assert.deepEqual(tried, ["writer:strong", "writer:weak"]);
+  assert.deepEqual(attempts.map((a) => [a.role, a.model, a.outcome.slice(0, 8)]), [
+    ["writer", "strong", "HTTP 503"],
+    ["writer", "weak", "ok"],
+  ]);
+});
+
+test("the reviewer uses its own model list", async () => {
+  const tried = [];
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const role = body.messages[0].content === REVIEW_PROMPT ? "reviewer" : "writer";
+    tried.push(`${role}:${body.model}`);
+    return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
+  };
+  const env = { ...ENV, NVIDIA_MODEL: "fast-writer", NVIDIA_REVIEW_MODEL: "careful-reviewer" };
+  const { review } = await explainAndReview("atelectasis", env);
+  assert.equal(review.status, "passed");
+  assert.deepEqual(tried, ["writer:fast-writer", "reviewer:careful-reviewer"]);
 });

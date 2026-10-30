@@ -1,6 +1,6 @@
 // Bump PROMPT_VERSION whenever the writer or reviewer prompts, examples, or model settings
 // change, so explanations cached in Supabase under the old setup are regenerated.
-export const PROMPT_VERSION = 7;
+export const PROMPT_VERSION = 8;
 
 export const SYSTEM_PROMPT = `You explain phrases from hospital discharge notes and lab reports to patients in plain English.
 
@@ -113,7 +113,9 @@ export const REVIEW_PROMPT = `You are a strict reviewer for Plainly, a site that
 5. Care-team questions. 1 or 2 short questions the patient could ask their care team, worded as questions, not advice.
 Also check accuracy: the explanation must match the standard medical meaning.
 
-You also get automated checks. They can raise false alarms, so use them as leads only.
+Only report clear violations of these rules. If you aren't sure something breaks a rule, it passes. A correct, plain answer passes even if you would word it differently, and a sentence that only describes what the term means is allowed. Never make an answer less accurate or remove correct information: fix only what breaks a rule.
+
+You also get the automated checks' findings. They can raise false alarms, so use them as leads only, and don't report a problem just because a check exists.
 
 Reply with ONLY a JSON object:
 {
@@ -122,6 +124,17 @@ Reply with ONLY a JSON object:
   "revised": null, or a complete corrected answer with exactly the draft's keys (understood, term, has_personal_info, explanation, word_parts, questions)
 }
 If the draft follows every rule, set "passed" to true, "problems" to [], and "revised" to null. Otherwise set "passed" to false, list every problem, and give a "revised" answer that fixes all of them and changes nothing else.`;
+
+// Pass the reviewer only what the checks found (not every empty list), so it isn't
+// tempted to invent problems from checks that came back clean.
+function checkFindings(checks) {
+  const findings = { reading_grade: checks.reading_grade };
+  for (const [key, value] of Object.entries(checks)) {
+    if (Array.isArray(value) && value.length && key !== "words_per_sentence") findings[key] = value;
+  }
+  if (checks.question_count < 1 || checks.question_count > 2) findings.question_count = checks.question_count;
+  return findings;
+}
 
 export function buildReviewMessages(phrase, draft, checks) {
   const { understood, term, has_personal_info, explanation, word_parts, questions } = draft;
@@ -132,7 +145,7 @@ export function buildReviewMessages(phrase, draft, checks) {
       content: [
         `Original input: """${phrase}"""`,
         `Draft answer: ${JSON.stringify({ understood, term, has_personal_info, explanation, word_parts, questions })}`,
-        `Automated checks: ${JSON.stringify(checks)}`,
+        `Automated check findings: ${JSON.stringify(checkFindings(checks))}`,
       ].join("\n\n"),
     },
   ];
