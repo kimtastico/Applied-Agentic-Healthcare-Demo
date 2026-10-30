@@ -363,6 +363,31 @@ test("the final check catches a hard reading level, a repeated term, and missing
   assert.match(issues, /no questions for the care team/);
 });
 
+test("a correct definition that says 'too high' isn't blocked by the final check", async () => {
+  const hyperkalemia = {
+    understood: true,
+    term: "hyperkalemia",
+    has_personal_info: false,
+    explanation: "The potassium in your blood is too high. Potassium helps your heart and muscles work.",
+    word_parts: [{ word: "hyper", meaning: "above, too much" }, { word: "kal", meaning: "potassium" }],
+    questions: ["What does this mean for me?"],
+  };
+  fakeNvidia({ reviewer: { passed: false, problems: [{ rule: 3, issue: "Missing word parts" }], revised: hyperkalemia } });
+  const { review } = await explainAndReview("hyperkalemia", ENV);
+  assert.equal(review.status, "revised");
+});
+
+test("the potassium worked example explains its unit without a normal range", async () => {
+  const { buildMessages } = await import("../src/prompt.js");
+  const messages = buildMessages("sodium 128 mmol/L");
+  const potassium = JSON.parse(messages.find((m) => m.role === "assistant" && m.content.includes("potassium")).content);
+  assert.deepEqual(potassium.word_parts[0], {
+    word: "mmol/L",
+    meaning: "millimoles per liter: how much potassium is in a liter of blood",
+  });
+  assert.doesNotMatch(JSON.stringify(potassium.word_parts), /\d/);
+});
+
 test("an approved draft is not re-checked (the reviewer already judged the code's findings)", async () => {
   // The code would flag "risk", but the reviewer saw that and approved the draft.
   const approved = { ...fixed, explanation: "This test shows your risk of a blood clot." };

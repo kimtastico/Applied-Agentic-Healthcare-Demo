@@ -395,8 +395,8 @@ function label(slide, name, x, y, w, text) {
     "Live: " + SITE_URL + "\n\n" +
       "1. Search “hyponatremia”: the writer drafts, the reviewer checks, about 5 seconds. Point out the badges.\n" +
       "2. Search it again: instant, “From the glossary,” word for word the same.\n" +
-      "3. Try “potassium 5.8 mmol/L”: it explains what the test measures, doesn’t judge the number, and only " +
-      "“potassium” is counted.\n" +
+      "3. Try “potassium 5.8 mmol/L”: it explains what the test measures and what the unit mmol/L means, " +
+      "without ever saying what a normal number is, and only “potassium” is counted.\n" +
       "4. Open " + SITE_URL + "/api/health/ai: it shows which models answered and how long each took.\n\n" +
       "Before presenting, search each demo term once so it’s saved and instant.\n\n" +
       "Screenshot: the live site’s hyponatremia answer, October 30, 2026.\n\n" +

@@ -50,7 +50,7 @@ Check every word part against `references/word-roots.md`. Read it rather than re
 - the whole term is repeated as a "part";
 - an everyday word like "lung" is defined.
 
-An empty word-parts list passes. The prompt prefers no parts over a guess. If a root isn't in the reference and you aren't confident, say "unverified" rather than pass or fail.
+A unit of measure explained in plain words (e.g. mmol/L = millimoles per liter) passes too, and the reference lists the common ones, but it fails if it gives a normal range or any number. An empty word-parts list passes. The prompt prefers no parts over a guess. If a root isn't in the reference and you aren't confident, say "unverified" rather than pass or fail.
 
 **Rule 4: No personal details.**
 The answer must never repeat names, dates, ID numbers, places, or other details about a person, even if the input contained them. The site's whole promise is that nothing about the person is kept or echoed. "You" and "your" are fine. The term must also be clean, because it is saved to the public glossary.

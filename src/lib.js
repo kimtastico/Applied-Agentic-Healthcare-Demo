@@ -123,8 +123,12 @@ const CAUSE_OR_ADVICE = [
   /\b(treat(ed|ment)?|medicine|medication|antibiotics?)\b/i,
   /\b(will|usually|often) (go away|get better|clear up|resolve)\b/i,
   /\bnot (serious|dangerous|a big deal)\b/i,
-  /\b(too high|too low|is normal|is high|is low|dangerous)\b/i,
 ];
+
+// Phrases that can judge a lab number ("your potassium is high"). They're only hints for the
+// reviewer: in a definition ("hyperkalemia: potassium in the blood is too high") they're
+// correct, and answers to inputs with a number are never saved anyway.
+const NUMBER_JUDGMENT = [/\b(too high|too low|is normal|is high|is low|dangerous)\b/i];
 
 const wordCount = (s) => (s.match(/[A-Za-z0-9'-]+/g) || []).length;
 
@@ -148,6 +152,10 @@ export function mechanicalChecks(answer) {
     words_per_sentence: sentences.map(wordCount),
     sentences_over_12_words: sentences.filter((s) => wordCount(s) > 12),
     possible_cause_or_advice: CAUSE_OR_ADVICE.flatMap((re) => {
+      const m = explanation.match(re);
+      return m ? [m[0]] : [];
+    }),
+    possible_number_judgment: NUMBER_JUDGMENT.flatMap((re) => {
       const m = explanation.match(re);
       return m ? [m[0]] : [];
     }),

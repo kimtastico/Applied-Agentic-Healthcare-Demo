@@ -59,6 +59,19 @@ Each root gets only its own meaning. When a word combines roots, the full meanin
 | -scopy | looking inside with a scope |
 | -uria | in the urine |
 
+## Units on lab reports
+
+A unit explanation says what is being counted, never what a normal amount is.
+
+| Unit | Means |
+| --- | --- |
+| mmol/L | millimoles per liter: how much of a substance is in a liter of blood |
+| mg/dL | milligrams per deciliter: how much of a substance, by weight, is in a tenth of a liter of blood |
+| mEq/L | milliequivalents per liter: how much of a charged mineral, like sodium or potassium, is in a liter of blood |
+| g/dL | grams per deciliter: how many grams are in a tenth of a liter of blood |
+| U/L, IU/L | units per liter: how active an enzyme is in a liter of blood |
+| K/uL, x10^3/uL | thousands of cells in a microliter, a tiny drop of blood |
+
 ## Whole words that patients often see
 
 | Word | Means |
