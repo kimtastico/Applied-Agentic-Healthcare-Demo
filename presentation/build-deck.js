@@ -303,11 +303,19 @@ function label(slide, name, x, y, w, text) {
 
 {
   const s = pres.addSlide({ masterName: "Title only" });
-  s.addText("It stores the term, never the person", { placeholder: "title" });
+  s.addText("The database: one row per term", { placeholder: "title" });
 
+  s.addText(
+    [{ text: "Supabase table: " }, { text: "glossary_terms", options: { fontFace: MONO } }],
+    { ...body(), x: M, y: 1.45, w: W, h: 0.55, objectName: "Table name" },
+  );
+
+  // Database columns run down the left; each sample is one row of the table.
   const field = (text) => ({ text, options: { fontSize: BODY_PT, fontFace: MONO, color: C.text1 } });
   const val = (text, extra = {}) => ({ text, options: { fontSize: BODY_PT, color: C.text1, ...extra } });
+  const head = (text) => ({ text, options: { fontSize: BODY_PT, color: C.text2, bold: true } });
   const rows = [
+    [head("column"), head("row 1"), head("row 2")],
     [field("term"), val("hyponatremia", { bold: true }), val("potassium", { bold: true })],
     [field("search_count"), val("3 (example)"), val("1 (example)")],
     [
@@ -324,7 +332,7 @@ function label(slide, name, x, y, w, text) {
     [field("model"), val("Llama 3.3 70B"), val("None")],
   ];
   s.addTable(rows, {
-    x: M, y: 1.55, w: W, colW: [3.5, 4.4, 4.23],
+    x: M, y: 2.15, w: W, colW: [3.5, 4.4, 4.23],
     border: { type: "solid", pt: 1, color: HEX.lt2 },
     fill: { color: C.background1 }, margin: [0.06, 0.12, 0.06, 0.12], valign: "middle",
     objectName: "Sample rows",
@@ -332,12 +340,12 @@ function label(slide, name, x, y, w, text) {
   s.addText(
     [
       { text: "Never stored: ", options: { bold: true, color: C.accent2 } },
-      { text: "who searched, their IP address, or what they typed" },
+      { text: "who searched or what they typed" },
     ],
-    { ...body(), x: M, y: 5.95, w: W, h: 1.1, valign: "top", objectName: "Never stored" },
+    { ...body(), x: M, y: 6.5, w: W, h: 0.55, objectName: "Never stored" },
   );
   s.addNotes(
-    "One Supabase table, glossary_terms. Each row is one medical term: term, search_count, explanation " +
+    "The whole database is one Supabase table, glossary_terms. Each row is one medical term: term, search_count, explanation " +
       "(the reviewed answer plus what the reviewer found, as JSON), model (which AI wrote it, e.g. " +
       "@cf/meta/llama-3.3-70b-instruct-fp8-fast), prompt_version (old answers are redone when the " +
       "instructions change), and two timestamps.\n\n" +
@@ -346,7 +354,7 @@ function label(slide, name, x, y, w, text) {
       "is counted and no explanation is saved.\n" +
       "The search counts shown are examples, not live numbers.\n\n" +
       "Privacy: anyone can read the glossary, but only the server can write to it (row-level security), and " +
-      "there is no column for a user, IP address or the text someone typed.\n\n" +
+      "there is no column for a user, their IP address, or the text someone typed.\n\n" +
       "Source: project code, supabase/migrations/0001_glossary.sql and src/worker.js.",
   );
 }
