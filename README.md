@@ -75,6 +75,8 @@ src/lib.js         pure helpers: normalization, privacy filters, JSON parsing, r
 src/demo.js        built-in answers for demo mode
 supabase/migrations/0001_glossary.sql   table, RLS, record_search()
 test/              unit tests (node --test), including the writer/reviewer pipeline
+presentation/      class deck (plainly-deck.pptx) and the script that builds it: cd presentation && npm install && npm run build
+.claude/           Claude Code project skill (review-explanation) and subagent (explanation-reviewer)
 ```
 
 ## Setup
