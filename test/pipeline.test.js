@@ -70,7 +70,7 @@ test("reviewer finds problems but gives no usable correction", async () => {
 
 test("reviewer outage returns the draft as unreviewed instead of failing", async () => {
   fakeNvidia({ reviewer: () => new Response('{"error":"Service temporarily overloaded"}', { status: 503 }) });
-  const { result, review } = await explainAndReview("atelectasis", ENV);
+  const { result, review } = await explainAndReview("atelectasis", { ...ENV, NVIDIA_RETRY_PAUSE_MS: "10" });
   assert.equal(review.status, "skipped");
   assert.equal(result.explanation, draft.explanation);
 });
@@ -160,13 +160,14 @@ test("a weak writer fallback never reviews: reviewer list is separate, failed mo
     return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
   };
   const attempts = [];
-  const env = { ...ENV, NVIDIA_MODEL: "strong, weak", NVIDIA_REVIEW_MODEL: "strong" };
+  const env = { ...ENV, NVIDIA_MODEL: "strong, weak", NVIDIA_REVIEW_MODEL: "strong", NVIDIA_RETRY_PAUSE_MS: "10" };
   const { result, review } = await explainAndReview("atelectasis", env, attempts);
   assert.equal(result.model, "weak");
   // "strong" already failed for the writer and "weak" isn't a reviewer, so no review runs.
   assert.equal(review.status, "skipped");
-  assert.deepEqual(tried, ["writer:strong", "writer:weak"]);
+  assert.deepEqual(tried, ["writer:strong", "writer:strong", "writer:weak"]);
   assert.deepEqual(attempts.map((a) => [a.role, a.model, a.outcome.slice(0, 8)]), [
+    ["writer", "strong", "HTTP 503"],
     ["writer", "strong", "HTTP 503"],
     ["writer", "weak", "ok"],
   ]);
@@ -184,4 +185,40 @@ test("the reviewer uses its own model list", async () => {
   const { review } = await explainAndReview("atelectasis", env);
   assert.equal(review.status, "passed");
   assert.deepEqual(tried, ["writer:fast-writer", "reviewer:careful-reviewer"]);
+});
+
+test("an overloaded model is retried once, then reused by the reviewer", async () => {
+  const tried = [];
+  let writerCalls = 0;
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const role = body.messages[0].content === REVIEW_PROMPT ? "reviewer" : "writer";
+    tried.push(`${role}:${body.model}`);
+    if (role === "writer" && ++writerCalls === 1) {
+      return new Response('{"error":"Service temporarily overloaded"}', { status: 503 });
+    }
+    return reply(role === "reviewer" ? { passed: true, problems: [], revised: null } : fixed);
+  };
+  const attempts = [];
+  const env = { ...ENV, NVIDIA_MODEL: "ultra, backup", NVIDIA_REVIEW_MODEL: "ultra", NVIDIA_RETRY_PAUSE_MS: "10" };
+  const { result, review } = await explainAndReview("atelectasis", env, attempts);
+  assert.equal(result.model, "ultra");
+  assert.equal(review.status, "passed");
+  assert.deepEqual(tried, ["writer:ultra", "writer:ultra", "reviewer:ultra"]);
+  assert.match(attempts[0].outcome, /HTTP 503.*\(retrying\)/);
+  assert.equal(attempts[1].outcome, "ok");
+});
+
+test("a model still overloaded after its retry falls back to the next", async () => {
+  const tried = [];
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    tried.push(body.model);
+    if (body.model === "ultra") return new Response('{"error":"overloaded"}', { status: 503 });
+    return reply(fixed);
+  };
+  const env = { ...ENV, NVIDIA_MODEL: "ultra, backup", NVIDIA_REVIEW: "off", NVIDIA_RETRY_PAUSE_MS: "10" };
+  const { result } = await explainAndReview("atelectasis", env);
+  assert.equal(result.model, "backup");
+  assert.deepEqual(tried, ["ultra", "ultra", "backup"]);
 });

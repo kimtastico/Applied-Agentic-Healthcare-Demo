@@ -11,7 +11,12 @@ const FALLBACK_STATUSES = new Set([400, 404, 410, 422, 429, 500, 502, 503, 504, 
 
 // How long one model gets before the next one is tried. Free endpoints are shared and
 // can stall under load, so a slow model shouldn't hold up the whole answer.
-const DEFAULT_MODEL_TIMEOUT_SECONDS = 25;
+const DEFAULT_MODEL_TIMEOUT_SECONDS = 15;
+
+// "Overloaded" and "rate-limited" on shared free endpoints usually clear within seconds,
+// so these get one retry after a short pause before moving to the next model.
+const RETRY_STATUSES = new Set([429, 503]);
+const RETRY_PAUSE_MS = 1500;
 
 /**
  * NVIDIA_MODEL lists the writer's models, comma-separated, tried in order.
@@ -103,6 +108,11 @@ async function chat(messages, phrase, env, deadline, { role, models, attempts })
       reasoning = false;
       attempt = await callNvidia(messages, phrase, env, model, reasoning, timeLeft());
     }
+    if (!attempt.data && RETRY_STATUSES.has(attempt.status) && deadline - Date.now() > RETRY_PAUSE_MS + 1000) {
+      record(`HTTP ${attempt.status}: ${attempt.detail} (retrying)`);
+      await new Promise((resolve) => setTimeout(resolve, Number(env.NVIDIA_RETRY_PAUSE_MS ?? RETRY_PAUSE_MS)));
+      attempt = await callNvidia(messages, phrase, env, model, reasoning, timeLeft());
+    }
     if (attempt.data) {
       record("ok");
       const choice = attempt.data?.choices?.[0];
@@ -143,7 +153,10 @@ export async function explainWithNvidia(phrase, env, deadline = Date.now() + 55_
  * a good answer worse. Models that already failed in this request are skipped.
  */
 export async function reviewWithNvidia(phrase, draft, checks, env, deadline = Date.now() + 55_000, attempts = []) {
-  const failed = new Set(attempts.filter((a) => a.outcome !== "ok").map((a) => a.model));
+  // A model that failed and never succeeded in this request (one that recovered on
+  // retry is fine to use again).
+  const ok = new Set(attempts.filter((a) => a.outcome === "ok").map((a) => a.model));
+  const failed = new Set(attempts.map((a) => a.model).filter((m) => !ok.has(m)));
   const models = modelList(env, "NVIDIA_REVIEW_MODEL").filter((m) => !failed.has(m));
   if (!models.length) throw new Error("No reviewer model available (all failed earlier in this request)");
   const reply = await chat(buildReviewMessages(phrase, draft, checks), phrase, env, deadline, {
